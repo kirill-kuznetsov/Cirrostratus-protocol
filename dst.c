@@ -53,7 +53,6 @@ static unsigned int dst_seq;
 
 static int digit2int(char d)
 {
-	//ulog("call digit2int\n");
         switch(d) {
         case 'F':
         case 'E':
@@ -89,7 +88,7 @@ static unsigned char* hex2int(char *s, unsigned char* mac)
         int res;
         int tmp;
 	int i,j;
- 	ulog("call hex2int\n");    
+     
         if (strlen(s) != 12)
                 return NULL;
 
@@ -115,7 +114,7 @@ static int dst_recv_ack(int s)
 	struct dst_ctl_ack *ack;
 	struct nlmsghdr *nlh;
 	int err;
-	ulog("call dst_recv_ack\n");
+
 	pfd.fd = s;
 	pfd.events = POLLIN;
 	pfd.revents = 0;
@@ -182,8 +181,7 @@ static int dst_netlink_send(int s, struct dst_ctl *ctl, unsigned int len)
 	int err;
 	char buf[4096];
 	struct cn_msg *m;
-	
-	ulog("call dst_netlink_send\n");
+
 	size = NLMSG_SPACE(sizeof(struct cn_msg) + len);
 
 	nlh = (struct nlmsghdr *)buf;
@@ -233,7 +231,7 @@ static int dst_sock_init(struct sockaddr_ll *sa, char *addr, unsigned short port
 	unsigned char mac[6];
 	hex2int(addr, &mac[0]);
 	memcpy(&(sa->sll_addr), mac, 6);
-	ulog("call dst_sock_init\n");
+	
 	sa->sll_family = AF_PACKET;
 	sa->sll_protocol = htons(ETH_P_ALL);
 	sa->sll_ifindex = 2;
@@ -261,7 +259,7 @@ static int dst_setup_remote_ctl(struct dst_network_ctl *rc, char *addr, int port
 	
 	int err;
 	struct sockaddr_ll sa;
-	ulog("call dst_setup_remote_ctl\n");
+
 	err = dst_sock_init(&sa, addr, port);
 	if (err)
 		return err;
@@ -277,7 +275,7 @@ static int dst_setup_remote_ctl(struct dst_network_ctl *rc, char *addr, int port
 static char *get_next_item(char *p)
 {
 	int found = 0;
-	ulog("call get_next_item\n");
+	
 	while (p && *p && !isspace(*p)) {
 		p++;
 	}
@@ -343,7 +341,7 @@ static int dst_security(int fd, struct dst_ctl *ctl, char *sec_file)
 	struct sockaddr_ll sa;
 	struct dst_secure_user *s = (struct dst_secure_user *)(ctl + 1);
 	int err = -EINVAL;
-	ulog("call dst_security\n");
+
 	f = fopen(sec_file, "r");
 	if (!f)
 		return -1;
@@ -387,7 +385,6 @@ static int dst_add_local_export(int fd, struct dst_ctl *ctl, char *disk,
 {
 	struct dst_export_ctl *le;
 	int err;
-	ulog("call dst_add_local_export\n");
 
 	le = (struct dst_export_ctl *)(ctl + 1);
 
@@ -404,7 +401,7 @@ static int dst_add_remote(int fd, struct dst_ctl *ctl, char *addr, int port)
 {
 	struct dst_network_ctl *rc;
 	int err;
-	ulog("call dst_add_remote\n");
+
 	rc = (struct dst_network_ctl *)(ctl + 1);
 
 	err = dst_setup_remote_ctl(rc, addr, port);
@@ -417,7 +414,7 @@ static int dst_add_remote(int fd, struct dst_ctl *ctl, char *addr, int port)
 static int dst_fill_crypto_key(char *file, void *key)
 {
 	int fd, err, max_keysize = 1024;
-	ulog("call dst_fill_crypto_key\n");
+
 	fd = open(file, O_RDONLY);
 	if (fd == -1) {
 		ulog_err("Failed to open cipher key file '%s'", file);
@@ -445,8 +442,7 @@ static int dst_crypto(int fd, struct dst_ctl *ctl, char *cipher, char *cipher_fi
 	struct dst_crypto_ctl *c = (struct dst_crypto_ctl *)(ctl + 1);
 	void *key = c + 1;
 	int err;
-	
-	ulog("call dst_crypto\n");
+
 	memset(c, 0, sizeof(struct dst_crypto_ctl));
 
 	if (cipher && cipher_file) {
@@ -523,6 +519,7 @@ int main(int argc, char *argv[])
 	max_pages = 2;
 	trans_scan_timeout = 10000;
 
+	ulog("%d" , (sizeof(struct dst_cmd )));
 	while ((ch = getopt(argc, argv, "T:m:t:x:c:C:H:Dn:S:d:a:p:s:hR")) > 0) {
 		switch (ch) {
 			case 't':

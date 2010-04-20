@@ -465,7 +465,7 @@ int dst_data_recv(struct dst_state *st, void *data, unsigned int size)
 /*
  * Send block autoconf reply.
  */
-int dst_process_cfg(struct dst_state *st)//static
+static int dst_process_cfg(struct dst_state *st)
 {
 	printk(KERN_INFO "PROCESS CFG: SEND AUTOCONF REPLY");
 	struct dst_node *n = st->node;

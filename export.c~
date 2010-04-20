@@ -77,8 +77,8 @@ static unsigned int dst_check_permissions(struct dst_state *main, struct dst_sta
 		 * protocol to something else, I can create per-family helpers and
 		 * use them instead of this memcmp.
 		 */
-		if (memcmp(s->addr.sa_data + 10, sa->sa_data + 10,
-					ETH_ALEN))
+		if (memcmp(s->addr.sa_data + 2, sa->sa_data + 2,
+					sa->sa_data_len - 2))
 			continue;
 
 		perm = s->permissions;
@@ -100,7 +100,7 @@ static struct dst_state *dst_accept_client(struct dst_state *st)
 	int err = 0;
 	struct socket *sock = NULL;
 	struct dst_state *new;
-	//printk(KERN_INFO "before while");
+
 	while (!err && !sock) {
 		revents = dst_state_poll(st);
 
@@ -132,6 +132,7 @@ static struct dst_state *dst_accept_client(struct dst_state *st)
 			}
 			finish_wait(&st->thread_wait, &wait);
 		}
+
 		err = -ECONNRESET;
 		dst_state_lock(st);
 
@@ -148,15 +149,11 @@ static struct dst_state *dst_accept_client(struct dst_state *st)
 		if (!n->trans_scan_timeout || st->need_exit)
 			err = -ENODEV;
 		//my diff
-		if (st->socket && (revents & POLLIN)){
-				sock = st->socket;
-				err = 0;
-				}
-		//err = kernel_accept(st->socket, &sock, 0);
-		//my diff
+//		if (st->socket && (revents & POLLIN))
+//			err = kernel_accept(st->socket, &sock, 0);
+
 		dst_state_unlock(st);
 	}
-	//printk(KERN_INFO "after while");
 
 	if (err)
 		goto err_out_exit;
@@ -168,26 +165,28 @@ static struct dst_state *dst_accept_client(struct dst_state *st)
 	}
 	new->socket = sock;
 
-	new->ctl.addr.sa_data_len = sizeof(struct sockaddr_ll);//mydiff sockaddr
-	
-	//err = kernel_getpeername(sock, (struct sockaddr *)&new->ctl.addr,(int *)&new->ctl.addr.sa_data_len);
-	err = dst_serv_recv( new, st);
-	printk(KERN_INFO "%d,\n %d", err, &new );
-	
-	
-	if (err){
-		printk(KERN_INFO "no get peername");
+	new->ctl.addr.sa_data_len = sizeof(struct sockaddr);
+	err = kernel_getpeername(sock, (struct sockaddr *)&new->ctl.addr,
+			(int *)&new->ctl.addr.sa_data_len);
+	if (err)
+		goto err_out_put;
+
+	new->permissions = dst_check_permissions(st, new);
+	if (new->permissions == 0) {
+		err = -EPERM;
+		dst_dump_addr(sock, (struct sockaddr *)&new->ctl.addr,
+				"Client is not allowed to connect");
+		printk(KERN_INFO "EPERM error");
 		goto err_out_put;
 	}
-	printk(KERN_INFO "get peername");
-	
+
 	err = dst_poll_init(new);
 	if (err)
 		goto err_out_put;
-	printk(KERN_INFO "poll init");
+
 	dst_dump_addr(sock, (struct sockaddr *)&new->ctl.addr,
 			"Connected client");
-	printk(KERN_INFO "connected client");
+
 	return new;
 
 err_out_put:
@@ -197,83 +196,6 @@ err_out_release:
 err_out_exit:
 	return ERR_PTR(err);
 }
-
-int dst_serv_recv(struct dst_state *st, struct dst_state *new){
-
-	void *buf = kmalloc(62, GFP_KERNEL);
-	struct dst_cmd *cmd = new->data;
-	int err = -EINTR;
-	int req_len = 62;
-	struct sockaddr_ll sa;
-	int i;
-	
-	memset(&sa, 0, sizeof(struct sockaddr_ll));
-	
-	st->read_socket = st->socket;
-	
-	err = dst_data_recv(new, buf, req_len);
-		
-	memcpy((void*)(&sa+12), (void *)(buf+ETH_ALEN), ETH_ALEN); // receive mac
-	
-	memcpy((void*)cmd, (void*)(buf+14), sizeof(struct dst_cmd)); // receive cmd
-	
-		
-	dst_convert_cmd(cmd);
-	memcpy((void*)(&new->ctl.addr), (void *)(&sa), ETH_ALEN);
-	new->ctl.addr.sa_data_len = sizeof(struct sockaddr_ll);
-	
-	printk(KERN_INFO "mac: ");
-	for(i = 0; i < sizeof(sa.sll_addr); i++) {
-		printk(KERN_INFO "%d", sa.sll_addr[i]);
-	}
-	printk(KERN_INFO "\n");	
-
-	
-	printk(KERN_INFO "mac: ");
-	for(i = 0; i < new->ctl.addr.sa_data_len; i++) {
-		printk(KERN_INFO "%d", new->ctl.addr.sa_data[i]);
-	}
-	printk(KERN_INFO "\n");	
-
-	/*
-	 * This should catch protocol breakage and random garbage instead of commands.
-	 */
-	if (unlikely(cmd->csize > new->size - sizeof(struct dst_cmd))) {
-		err = -EBADMSG;
-		goto out_exit;
-	}
-	new->permissions = dst_check_permissions(st, new);
-	printk(KERN_INFO "new->permissions %d/n", new->permissions);
-/* (new->permissions == 0) {
-		err = -EPERM;
-		dst_dump_addr(sock, (struct sockaddr *)&new->ctl.addr,
-				"Client is not allowed to connect");
-		printk(KERN_INFO "EPERM error");
-		goto err_out_put;
-	}*/
-	err = -EPROTO;
-	switch (cmd->cmd) {
-		case DST_IO_RESPONSE:
-			//err = dst_process_io_response(new);
-			break;
-		case DST_IO:
-			err = dst_process_io(new);
-			break;
-		case DST_CFG:
-			err = dst_process_cfg(new);
-			break;
-		case DST_PING:
-			err = 0;
-			break;
-		default:
-			break;
-	}
-	return 0;
-out_exit:
-	return err;
-}
-
-
 
 /*
  * Each server's block request sometime finishes.
@@ -431,7 +353,7 @@ int dst_start_export(struct dst_node *n)
  * Initialize listening state and schedule accepting thread.
  */
 int dst_node_init_listened(struct dst_node *n, struct dst_export_ctl *le)
-{	
+{
 	struct dst_state *st;
 	int err = -ENOMEM;
 	struct dst_network_ctl *ctl = &le->ctl;
@@ -611,6 +533,7 @@ err_out_free_page:
 err_out_exit:
 	return err;
 }
+
 /*
  * Groovy, we've gotten an IO request from the client.
  * Allocate BIO from the bioset, private data from the mempool
