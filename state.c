@@ -44,7 +44,7 @@ struct dst_poll_helper
 
 static int dst_queue_wake(wait_queue_t *wait, unsigned mode, int sync, void *key)
 {
-	printk(KERN_INFO "WAKIN' UP QUEUE");
+	//printk(KERN_INFO "WAKIN' UP QUEUE");
 	struct dst_state *st = container_of(wait, struct dst_state, wait);
 
 	wake_up(&st->thread_wait);
@@ -118,7 +118,7 @@ static int dst_data_recv_header(struct socket *sock,
 int dst_data_send_header(struct socket *sock,
 		void *data, unsigned int size, int more)
 {
-	printk(KERN_INFO "SEND HEADER");
+	//printk(KERN_INFO "SEND HEADER");
 	struct msghdr msg;
 	struct kvec iov;
 	int err;
@@ -131,14 +131,14 @@ int dst_data_send_header(struct socket *sock,
 	struct ethhdr *eh = (struct ethhdr *)etherhead;	
 	
 	/*our MAC address*/
-	unsigned char src_mac[6] = {0x08, 0x00, 0x27, 0x0e, 0x6c, 0x6c};
+	unsigned char src_mac[6] = {0x08, 0x00, 0x27, 0x9d, 0x88, 0xa6};
 	/*other host MAC address*/
-	unsigned char dest_mac[6] = {0x08, 0x00, 0x27, 0x9d, 0x88, 0xa6};	
+	unsigned char dest_mac[6] = {0x08, 0x00, 0x27, 0x0e, 0x6c, 0x6c};	
 	
 	/*set the frame header*/
 	memcpy((void*)buffer, (void*)dest_mac, ETH_ALEN);
 	memcpy((void*)(buffer+ETH_ALEN), (void*)src_mac, ETH_ALEN);
-	eh->h_proto = htons(ETH_P_802_3);
+	eh->h_proto = htons(ETH_P_ALL);
 	
 	memcpy((void*)(buffer+14), data, (int)size);	
 	
@@ -370,7 +370,7 @@ static int dst_data_recv_raw(struct dst_state *st, void *buf, u64 size)
  */
 static int dst_send_ping(struct dst_state *st)
 {
-	printk(KERN_INFO "PING TO DETECT FAILED");
+	//printk(KERN_INFO "PING TO DETECT FAILED");
 	struct dst_cmd *cmd = st->data;
 	int err = -ECONNRESET;
 
@@ -395,7 +395,7 @@ static int dst_send_ping(struct dst_state *st)
  */
 int dst_data_recv(struct dst_state *st, void *data, unsigned int size)
 {
-		printk(KERN_INFO "DATA RCV");
+	printk(KERN_INFO "DATA RCV");
 	unsigned int revents = 0;
 	unsigned int err_mask = POLLERR | POLLHUP | POLLRDHUP;
 	unsigned int mask = err_mask | POLLIN;
@@ -423,7 +423,7 @@ int dst_data_recv(struct dst_state *st, void *data, unsigned int size)
 					break;
 
 				if (!schedule_timeout(HZ)) {
-					err = dst_send_ping(st);
+					//err = dst_send_ping(st);
 					if (err)
 						return err;
 				}
@@ -471,7 +471,7 @@ int dst_process_cfg(struct dst_state *st)//static
 	struct dst_node *n = st->node;
 	struct dst_cmd *cmd = st->data;
 	int err;
-
+	printk(KERN_INFO "node size %d", n->size);
 	cmd->sector = n->size;
 	cmd->rw = st->permissions;
 
@@ -480,7 +480,7 @@ int dst_process_cfg(struct dst_state *st)//static
 	dst_state_lock(st);
 	err = dst_data_send_header(st->socket, cmd, sizeof(struct dst_cmd), 0);
 	dst_state_unlock(st);
-
+	printk(KERN_INFO "dst_process_cfg %d\n", err);
 	return err;
 }
 
