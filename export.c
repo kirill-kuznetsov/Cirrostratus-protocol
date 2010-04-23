@@ -199,9 +199,9 @@ err_out_exit:
 }
 
 /*
- * Check client's mac and compare one with list of client's mac,
+ * check client's mac and compare one with list of client's mac,
  * then if mac already exists - drop packet, else check command in data and
- * if command is DST_CFG then add mac to list and call dst_accept_client.
+ * if command is DST_CFG then add mac to list and call dst_accept_client
  */
 int dst_check_client_mac(struct dst_state *st){
 
