@@ -44,7 +44,7 @@ struct dst_poll_helper
 
 static int dst_queue_wake(wait_queue_t *wait, unsigned mode, int sync, void *key)
 {
-	//printk(KERN_INFO "WAKIN' UP QUEUE");
+	printk(KERN_INFO "WAKIN' UP QUEUE");
 	struct dst_state *st = container_of(wait, struct dst_state, wait);
 
 	wake_up(&st->thread_wait);
@@ -106,7 +106,6 @@ static int dst_data_recv_header(struct socket *sock,
 
 	err = kernel_recvmsg(sock, &msg, &iov, 1, iov.iov_len,
 			msg.msg_flags);
-	printk(KERN_INFO "kernel_recvmsg err %d\n", err);
 	if (err != size)
 		return -1;
 
@@ -132,14 +131,14 @@ int dst_data_send_header(struct socket *sock,
 	struct ethhdr *eh = (struct ethhdr *)etherhead;	
 	
 	/*our MAC address*/
-	unsigned char src_mac[6] = {0x08, 0x00, 0x27, 0x91, 0x34, 0x51};
+	unsigned char src_mac[6] = {0x08, 0x00, 0x27, 0x0e, 0x6c, 0x6c};
 	/*other host MAC address*/
-	unsigned char dest_mac[6] = {0x08, 0x00, 0x27, 0xb7, 0x1e, 0xa0};	
+	unsigned char dest_mac[6] = {0x08, 0x00, 0x27, 0x91, 0x34, 0x51};	
 	
 	/*set the frame header*/
 	memcpy((void*)buffer, (void*)dest_mac, ETH_ALEN);
 	memcpy((void*)(buffer+ETH_ALEN), (void*)src_mac, ETH_ALEN);
-	eh->h_proto = htons(ETH_P_802_3);
+	eh->h_proto = htons(ETH_P_ALL);
 	
 	memcpy((void*)(buffer+14), data, (int)size);	
 	
@@ -174,7 +173,6 @@ static int dst_request_remote_config(struct dst_state *st)
 	struct dst_node *n = st->node;
 	int err = -EINVAL;
 	struct dst_cmd *cmd = st->data;
-	void *buf = kmalloc(62, GFP_KERNEL);
 
 	memset(cmd, 0, sizeof(struct dst_cmd));
 	cmd->cmd = DST_CFG;
@@ -187,10 +185,9 @@ static int dst_request_remote_config(struct dst_state *st)
 		goto out;
 	}
 	printk(KERN_INFO "RECEIVE HEADER AUTOCONF");
-	err = dst_data_recv_header(st->socket, buf, sizeof(struct dst_cmd) + 14, 0);//1
-	memcpy((void*)cmd, (void*)(buf+14), sizeof(struct dst_cmd));
+	err = dst_data_recv_header(st->socket, cmd, sizeof(struct dst_cmd), 1);
 	if (err){
-		printk(KERN_INFO "dst_data_recv_header error %d", err);
+		printk(KERN_INFO "dst_data_recv_header error");
 		goto out;
 	}
 	dst_convert_cmd(cmd);
@@ -468,7 +465,7 @@ int dst_data_recv(struct dst_state *st, void *data, unsigned int size)
 /*
  * Send block autoconf reply.
  */
-static int dst_process_cfg(struct dst_state *st)
+int dst_process_cfg(struct dst_state *st)//static
 {
 	printk(KERN_INFO "PROCESS CFG: SEND AUTOCONF REPLY");
 	struct dst_node *n = st->node;
