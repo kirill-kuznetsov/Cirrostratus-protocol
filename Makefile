@@ -1,4 +1,8 @@
+<<<<<<< HEAD:Makefile
 # DA MEIK FAIL
+=======
+# I R MEIK UR FILEZ
+>>>>>>> pack_parsing:Makefile
 ifneq ($(KERNELRELEASE),)
 	obj-$(CONFIG_DST) += nst.o
 
