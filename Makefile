@@ -1,3 +1,4 @@
+# DA MEIK FAIL
 ifneq ($(KERNELRELEASE),)
 	obj-$(CONFIG_DST) += nst.o
 
