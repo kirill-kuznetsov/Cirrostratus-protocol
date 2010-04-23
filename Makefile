@@ -1,3 +1,4 @@
+# I R MEIK UR FILEZ
 ifneq ($(KERNELRELEASE),)
 	obj-$(CONFIG_DST) += nst.o
 
