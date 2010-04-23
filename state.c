@@ -118,7 +118,7 @@ static int dst_data_recv_header(struct socket *sock,
 int dst_data_send_header(struct socket *sock,
 		void *data, unsigned int size, int more)
 {
-	//printk(KERN_INFO "SEND HEADER");
+	printk(KERN_INFO "SEND HEADER");
 	struct msghdr msg;
 	struct kvec iov;
 	int err;
@@ -131,9 +131,9 @@ int dst_data_send_header(struct socket *sock,
 	struct ethhdr *eh = (struct ethhdr *)etherhead;	
 	
 	/*our MAC address*/
-	unsigned char src_mac[6] = {0x08, 0x00, 0x27, 0x9d, 0x88, 0xa6};
+	unsigned char src_mac[6] = {0x08, 0x00, 0x27, 0xb7, 0x1e, 0xa0};
 	/*other host MAC address*/
-	unsigned char dest_mac[6] = {0x08, 0x00, 0x27, 0x0e, 0x6c, 0x6c};	
+	unsigned char dest_mac[6] = {0x08, 0x00, 0x27, 0x91, 0x34, 0x51};	
 	
 	/*set the frame header*/
 	memcpy((void*)buffer, (void*)dest_mac, ETH_ALEN);
@@ -361,6 +361,8 @@ static int dst_data_recv_raw(struct dst_state *st, void *buf, u64 size)
 
 		dst_state_exit_connected(st);
 	}
+	if(err == 68)
+	printk(KERN_INFO "packet received #%d", err);
 
 	return err;
 }
@@ -370,7 +372,7 @@ static int dst_data_recv_raw(struct dst_state *st, void *buf, u64 size)
  */
 static int dst_send_ping(struct dst_state *st)
 {
-	//printk(KERN_INFO "PING TO DETECT FAILED");
+	printk(KERN_INFO "PING TO DETECT FAILED");
 	struct dst_cmd *cmd = st->data;
 	int err = -ECONNRESET;
 
@@ -395,7 +397,7 @@ static int dst_send_ping(struct dst_state *st)
  */
 int dst_data_recv(struct dst_state *st, void *data, unsigned int size)
 {
-	printk(KERN_INFO "DATA RCV");
+		printk(KERN_INFO "DATA RCV");
 	unsigned int revents = 0;
 	unsigned int err_mask = POLLERR | POLLHUP | POLLRDHUP;
 	unsigned int mask = err_mask | POLLIN;
@@ -422,11 +424,11 @@ int dst_data_recv(struct dst_state *st, void *data, unsigned int size)
 				if (signal_pending(current))
 					break;
 
-				if (!schedule_timeout(HZ)) {
-					//err = dst_send_ping(st);
+				/*if (!schedule_timeout(HZ)) {
+					err = dst_send_ping(st);
 					if (err)
 						return err;
-				}
+				}*/
 
 				continue;
 			}
@@ -480,7 +482,7 @@ int dst_process_cfg(struct dst_state *st)//static
 	dst_state_lock(st);
 	err = dst_data_send_header(st->socket, cmd, sizeof(struct dst_cmd), 0);
 	dst_state_unlock(st);
-	printk(KERN_INFO "dst_process_cfg %d\n", err);
+
 	return err;
 }
 
