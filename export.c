@@ -105,7 +105,7 @@ int check_mac(unsigned char *mac, unsigned char **mac_list, int *macs)
 	{	
 		contains = 1;
 		for(j = 0; j < ETH_ALEN; j++)
-			if( mac [j] == mac_list [i] [j] ){
+			if( mac [j] != mac_list [i] [j] ){
 				contains = 0;
 				break;
 			}
@@ -284,6 +284,7 @@ struct dst_state *dst_check_client_mac(struct dst_state *st, unsigned char **mac
 					printk(KERN_INFO "mac to accept");
 					dst_print_mac( client_mac);	
 					new = dst_accept_client(st);
+					memcpy(new->data, st->data, sizeof(struct dst_cmd));
 					err = dst_process_cfg(new);
 					printk(KERN_INFO "DST_PROC_CFG %d/n",err);
 					break;
