@@ -131,9 +131,9 @@ int dst_data_send_header(struct socket *sock,
 	struct ethhdr *eh = (struct ethhdr *)etherhead;	
 	
 	/*our MAC address*/
-	unsigned char src_mac[6] = {0x08, 0x00, 0x27, 0x9d, 0x88, 0xa6};
+	unsigned char src_mac[6] = {0x08, 0x00, 0x27, 0xb7, 0x1e, 0xa0};
 	/*other host MAC address*/
-	unsigned char dest_mac[6] = {0x08, 0x00, 0x27, 0x0e, 0x6c, 0x6c};	
+	unsigned char dest_mac[6] = {0x08, 0x00, 0x27, 0x91, 0x34, 0x51};	
 	
 	/*set the frame header*/
 	memcpy((void*)buffer, (void*)dest_mac, ETH_ALEN);
@@ -480,7 +480,6 @@ int dst_process_cfg(struct dst_state *st)//static
 	dst_state_lock(st);
 	err = dst_data_send_header(st->socket, cmd, sizeof(struct dst_cmd), 0);
 	dst_state_unlock(st);
-	printk(KERN_INFO "dst_process_cfg %d\n", err);
 	return err;
 }
 

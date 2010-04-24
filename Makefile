@@ -13,3 +13,5 @@ default:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
 
 endif
+clean:
+	make -C clean

@@ -87,6 +87,33 @@ static unsigned int dst_check_permissions(struct dst_state *main, struct dst_sta
 
 	return 3;//perm;
 }
+/*
+ *Checks if mac contains in accepted macs list.
+ */ 
+void dst_print_mac(unsigned char *mac)
+{
+	int i;
+	printk(KERN_INFO "mac: ");
+	printk(KERN_INFO "%d:%d:%d:%d:%d:%d", mac[0],mac[1], mac[2], mac[3], mac[4], mac[5]);
+	
+}
+int check_mac(unsigned char *mac, unsigned char **mac_list, int *macs)
+{	
+	int i, j, contains;
+	contains = 0;
+	for( i = 0; i < *macs; ++i)
+	{	
+		contains = 1;
+		for(j = 0; j < ETH_ALEN; j++)
+			if( mac [j] == mac_list [i] [j] ){
+				contains = 0;
+				break;
+			}
+	}
+	//dst_print_mac( mac );
+	printk(KERN_INFO "contains: %d", contains);	
+	return contains;
+}
 
 /*
  * Accept new client: allocate appropriate network state and check permissions.
@@ -100,7 +127,9 @@ static struct dst_state *dst_accept_client(struct dst_state *st)
 	int err = 0;
 	struct socket *sock = NULL;
 	struct dst_state *new;
-	//printk(KERN_INFO "before while");
+	printk(KERN_INFO "dst_accept_client");
+	struct dst_network_ctl *ctl = &st->ctl;
+	/*
 	while (!err && !sock) {
 		revents = dst_state_poll(st);
 
@@ -128,7 +157,7 @@ static struct dst_state *dst_accept_client(struct dst_state *st)
 				 * process context instead of implementing special
 				 * locking there.
 				 */
-				schedule_timeout(HZ);
+				/*schedule_timeout(HZ);
 			}
 			finish_wait(&st->thread_wait, &wait);
 		}
@@ -160,32 +189,41 @@ static struct dst_state *dst_accept_client(struct dst_state *st)
 
 	if (err)
 		goto err_out_exit;
-
-	new = dst_state_alloc(st->node);
+	*/
+	new = dst_state_alloc(st->node); //allocates new state for ne client
 	if (!new) {
+		printk(KERN_INFO "state alloc err %d", err);
 		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	memcpy(&new->ctl, &st->ctl, sizeof(struct dst_network_ctl));
+	err = dst_state_socket_create(new);//creates socket for new state
+	if (err){
+		printk(KERN_INFO "sock create err %d", err);
+		goto err_out_exit;
+	}
+
+	st->socket->sk->sk_reuse = 1;
+
+	err = kernel_bind(new->socket, (struct sockaddr *)&ctl->addr,
+			ctl->addr.sa_data_len);//bind socket with eth interface
+	if(!err){
+		printk(KERN_INFO "BIND OK!!!!");
+	}
+	if (err){
+		printk(KERN_INFO "NO BIND!!!!");
 		goto err_out_release;
 	}
-	new->socket = sock;
-
+	
 	new->ctl.addr.sa_data_len = sizeof(struct sockaddr_ll);//mydiff sockaddr
 	
-	//err = kernel_getpeername(sock, (struct sockaddr *)&new->ctl.addr,(int *)&new->ctl.addr.sa_data_len);
-	err = dst_serv_recv( new, st);
-	printk(KERN_INFO "%d,\n %d", err, &new );
-	
-	
-	if (err){
-		printk(KERN_INFO "no get peername");
-		goto err_out_put;
-	}
-	printk(KERN_INFO "get peername");
+	printk(KERN_INFO "%d,\n", err);
 	
 	err = dst_poll_init(new);
 	if (err)
 		goto err_out_put;
 	printk(KERN_INFO "poll init");
-	dst_dump_addr(sock, (struct sockaddr *)&new->ctl.addr,
+	dst_dump_addr(new -> socket, (struct sockaddr *)&new->ctl.addr,
 			"Connected client");
 	printk(KERN_INFO "connected client");
 	return new;
@@ -193,28 +231,29 @@ static struct dst_state *dst_accept_client(struct dst_state *st)
 err_out_put:
 	dst_state_put(new);
 err_out_release:
-	sock_release(sock);
+	sock_release(new->socket);//wtf?
 err_out_exit:
 	return ERR_PTR(err);
 }
 
 /*
- * check client's mac and compare one with list of client's mac,
+ * Check client's mac and compare one with list of client's mac,
  * then if mac already exists - drop packet, else check command in data and
- * if command is DST_CFG then add mac to list and call dst_accept_client
+ * if command is DST_CFG then add mac to list and call dst_accept_client.
  */
-int dst_check_client_mac(struct dst_state *st){
+struct dst_state *dst_check_client_mac(struct dst_state *st, unsigned char **mac_list, int *macs){
 
 	void *buf = kmalloc(62, GFP_KERNEL);
 	struct dst_cmd *cmd = st->data;
 	int req_len = 62;
-	int i, err;
+	int i, err, contains, permissions;
 	unsigned char client_mac[6];
+	struct dst_state *new;
 	
 	st->read_socket = st->socket;
 	
 	err = dst_data_recv(st, buf, req_len);
-	if(err = req_len) {
+	if(err == req_len) {
 		printk(KERN_INFO "recieve message");
 		i++;
 	}
@@ -224,29 +263,42 @@ int dst_check_client_mac(struct dst_state *st){
 
 	memcpy((void*)&client_mac, (void *)(buf+ETH_ALEN), ETH_ALEN); // receive mac
 	memcpy((void*)cmd, (void*)(buf+14), sizeof(struct dst_cmd));  // receive cmd
-		
-	dst_convert_cmd(cmd);
 	
-	printk(KERN_INFO "mac: ");
-	for(i = 0; i < ETH_ALEN; i++) {
-		printk(KERN_INFO "%d", client_mac[i]);
-	}
-	printk(KERN_INFO "\n");	
-	
-	st->permissions = 3;	
-	
-	err = -EPROTO;
-	switch (cmd->cmd) {
-		case DST_CFG:
-			err = dst_process_cfg(st);
-			printk(KERN_INFO "DST_PROC_CFG %d/n",err);
-			break;
-		default:
-			printk(KERN_INFO "DST CMD ERR");
-			break;
+	contains = check_mac(client_mac, mac_list, macs);
+	if( contains ){
+		err = -ENOMEM;
+		printk(KERN_INFO "mac contains");
+	}		
+	else
+	{
+		permissions = 3;		
+		if( permissions <= 0)
+			err = -ENOMEM; //todo
+		else
+		{	
+			dst_convert_cmd(cmd);
+			switch (cmd->cmd) {
+				case DST_CFG:
+					mac_list[*macs] = client_mac;
+					(*macs)++;
+					printk(KERN_INFO "mac to accept");
+					dst_print_mac( client_mac);	
+					new = dst_accept_client(st);
+					err = dst_process_cfg(new);
+					printk(KERN_INFO "DST_PROC_CFG %d/n",err);
+					break;
+				default:
+					printk(KERN_INFO "DST CMD ERR");
+					err = -ENOMEM; //todo
+					break;
+			}
+		}
 	}
 	kfree(buf);
-	return 0;
+	if(err){
+		new = ERR_PTR(err);
+	}
+	return new;
 }
 
 
@@ -347,10 +399,13 @@ static int dst_accept(void *init_data, void *schedule_data)
 	struct dst_node *n = init_data;
 	struct dst_state *st;
 	int err,i;
+	unsigned char mac_list[10][6];
+	int macs = 0;
 	
+	i = 0;
 	printk(KERN_INFO "dst_accept");
 	while(i < 50){
-		err = dst_check_client_mac(main_st);
+		st = dst_check_client_mac(main_st, mac_list, &macs);
 		i++;
 	}
 	err = -1;
