@@ -53,18 +53,18 @@ void dst_export_exit(void)
  * its permissions are checked in a security attributes and sent
  * back.
  */
-static unsigned int dst_check_permissions(struct dst_state *main, struct dst_state *st)
+static unsigned int dst_check_permissions(struct dst_state *main, unsigned char *mac)
 {
 	struct dst_node *n = main->node;
 	struct dst_secure *sentry;
 	struct dst_secure_user *s;
-	struct saddr *sa = &st->ctl.addr;
+	//struct saddr *sa = &st->ctl.addr;
 	unsigned int perm = 0;
-
+	
 	mutex_lock(&n->security_lock);
 	list_for_each_entry(sentry, &n->security_list, sec_entry) {
 		s = &sentry->sec;
-
+		/*
 		if (s->addr.sa_family != sa->sa_family)
 			continue;
 
@@ -77,15 +77,13 @@ static unsigned int dst_check_permissions(struct dst_state *main, struct dst_sta
 		 * protocol to something else, I can create per-family helpers and
 		 * use them instead of this memcmp.
 		 */
-		if (memcmp(s->addr.sa_data + 10, sa->sa_data + 10,
-					ETH_ALEN))
+		if (memcmp(s->addr.sa_data + 10, mac, ETH_ALEN))
 			continue;
-
 		perm = s->permissions;
 	}
 	mutex_unlock(&n->security_lock);
 
-	return 3;//perm;
+	return 3;
 }
 /*
  *Checks if mac contains in accepted macs list.
@@ -271,7 +269,8 @@ struct dst_state *dst_check_client_mac(struct dst_state *st, unsigned char **mac
 	}		
 	else
 	{
-		permissions = 3;		
+		permissions = dst_check_permissions( st, client_mac);
+		printk(KERN_INFO "permissions: %d", permissions);		
 		if( permissions <= 0)
 			err = -ENOMEM; //todo
 		else
@@ -284,6 +283,7 @@ struct dst_state *dst_check_client_mac(struct dst_state *st, unsigned char **mac
 					printk(KERN_INFO "mac to accept");
 					dst_print_mac( client_mac);	
 					new = dst_accept_client(st);
+					new->permissions = permissions;
 					memcpy(new->data, st->data, sizeof(struct dst_cmd));
 					err = dst_process_cfg(new);
 					printk(KERN_INFO "DST_PROC_CFG %d/n",err);

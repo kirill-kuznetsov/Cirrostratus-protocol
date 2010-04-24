@@ -173,7 +173,8 @@ static int dst_request_remote_config(struct dst_state *st)
 	struct dst_node *n = st->node;
 	int err = -EINVAL;
 	struct dst_cmd *cmd = st->data;
-
+	void *buf = kmalloc( 62, GFP_KERNEL);
+	
 	memset(cmd, 0, sizeof(struct dst_cmd));
 	cmd->cmd = DST_CFG;
 
@@ -185,11 +186,14 @@ static int dst_request_remote_config(struct dst_state *st)
 		goto out;
 	}
 	printk(KERN_INFO "RECEIVE HEADER AUTOCONF");
-	err = dst_data_recv_header(st->socket, cmd, sizeof(struct dst_cmd), 1);
+	//err = dst_data_recv_header(st->socket, cmd, sizeof(struct dst_cmd), 1);
+	st->read_socket = st->socket;
+	err = dst_data_recv( st, buf, 62);
 	if (err){
 		printk(KERN_INFO "dst_data_recv_header error");
 		goto out;
 	}
+	memcpy((void*)cmd, (void*)(buf+14), sizeof(struct dst_cmd));
 	dst_convert_cmd(cmd);
 
 	if (cmd->cmd != DST_CFG) {
