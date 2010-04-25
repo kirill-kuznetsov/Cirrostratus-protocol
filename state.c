@@ -282,7 +282,8 @@ static int dst_state_init_connected(struct dst_state *st)
 {
 	int err;
 	struct dst_network_ctl *ctl = &st->ctl;
-
+	
+	printk(KERN_INFO "state_init_connected");
 	err = dst_state_socket_create(st);
 	if (err)
 		goto err_out_exit;

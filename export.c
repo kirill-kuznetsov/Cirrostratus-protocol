@@ -405,15 +405,9 @@ static int dst_accept(void *init_data, void *schedule_data)
 	
 	i = 0;
 	printk(KERN_INFO "dst_accept");
-	while(i < 50){
-		st = dst_check_client_mac(main_st, mac_list, &macs);
-		i++;
-	}
-	err = -1;
-
-	/*while (n->trans_scan_timeout && !main_st->need_exit) {
+	while (n->trans_scan_timeout && !main_st->need_exit) {
 		dprintk("%s: main_st: %p, n: %p.\n", __func__, main_st, n);
-		st = dst_accept_client(main_st);
+		st = dst_check_client_mac(main_st, mac_list, &macs);
 		if (IS_ERR(st))
 			continue;
 
@@ -444,14 +438,14 @@ static int dst_accept(void *init_data, void *schedule_data)
 		dst_state_cleanup_export(st);
 	}
 
-	dprintk("%s: freeing listening socket st: %p.\n", __func__, main_st);*/
+	dprintk("%s: freeing listening socket st: %p.\n", __func__, main_st);
 
-	/*dst_state_lock(main_st);
+	dst_state_lock(main_st);
 	dst_poll_exit(main_st);
 	dst_state_socket_release(main_st);
 	dst_state_unlock(main_st);
 	dst_state_put(main_st);
-	dprintk("%s: freed listening socket st: %p.\n", __func__, main_st);*/
+	dprintk("%s: freed listening socket st: %p.\n", __func__, main_st);
 	printk(KERN_INFO "dst_accept exit");
 	return 0;
 }
