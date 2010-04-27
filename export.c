@@ -95,18 +95,18 @@ void dst_print_mac(unsigned char *mac)
 	printk(KERN_INFO "%d:%d:%d:%d:%d:%d", mac[0],mac[1], mac[2], mac[3], mac[4], mac[5]);
 	
 }
-int check_mac(unsigned char *mac, unsigned char **mac_list, int *macs)
+int check_mac(struct dst_state *st,unsigned char *ch_mac)
 {	
 	int i, j, contains;
+	struct mac_list *m_list;
+	unsigned char *mac;
 	contains = 0;
-	for( i = 0; i < *macs; ++i)
+	list_for_each_entry(m_list, &st->ac_macs, mac_entry)
 	{	
-		contains = 1;
-		for(j = 0; j < ETH_ALEN; j++)
-			if( mac [j] != mac_list [i] [j] ){
-				contains = 0;
-				break;
-			}
+		mac = &m_list->mac;		
+		contains = !memcmp(mac, ch_mac, ETH_ALEN);
+		if(contains)
+			break;			
 	}
 	//dst_print_mac( mac );
 	printk(KERN_INFO "contains: %d", contains);	
@@ -239,14 +239,16 @@ err_out_exit:
  * then if mac already exists - drop packet, else check command in data and
  * if command is DST_CFG then add mac to list and call dst_accept_client.
  */
-struct dst_state *dst_check_client_mac(struct dst_state *st, unsigned char **mac_list, int *macs){
+struct dst_state *dst_check_client_mac(struct dst_state *st){
 
 	void *buf = kmalloc(62, GFP_KERNEL);
 	struct dst_cmd *cmd = st->data;
 	int req_len = 62;
 	int i, err, contains, permissions;
 	unsigned char client_mac[6];
+	unsigned char *test_mac;
 	struct dst_state *new;
+	struct mac_list *m_list;
 	
 	st->read_socket = st->socket;
 	
@@ -262,7 +264,7 @@ struct dst_state *dst_check_client_mac(struct dst_state *st, unsigned char **mac
 	memcpy((void*)&client_mac, (void *)(buf+ETH_ALEN), ETH_ALEN); // receive mac
 	memcpy((void*)cmd, (void*)(buf+14), sizeof(struct dst_cmd));  // receive cmd
 	
-	contains = check_mac(client_mac, mac_list, macs);
+	contains = check_mac(st,client_mac);
 	if( contains ){
 		err = -ENOMEM;
 		printk(KERN_INFO "mac contains");
@@ -278,12 +280,22 @@ struct dst_state *dst_check_client_mac(struct dst_state *st, unsigned char **mac
 			dst_convert_cmd(cmd);
 			switch (cmd->cmd) {
 				case DST_CFG:
-					mac_list[*macs] = client_mac;
-					(*macs)++;
 					printk(KERN_INFO "mac to accept");
 					dst_print_mac( client_mac);	
 					new = dst_accept_client(st);
 					new->permissions = permissions;
+					m_list = kmalloc(sizeof(struct mac_list), GFP_KERNEL);	
+					memcpy(m_list->mac, client_mac, ETH_ALEN);
+					//m_list->mac_entry = st->ac_
+					dst_print_mac(m_list->mac);				
+					new->mac = client_mac;
+					list_add_tail(&m_list->mac_entry, &st->ac_macs); //adding new connected mac to list of accepted ones
+					list_for_each_entry(m_list, &st->ac_macs, mac_entry)
+						{	
+							test_mac = &m_list->mac;
+							printk(KERN_INFO "test print mac: /n");		
+							dst_print_mac(test_mac);			
+						}
 					memcpy(new->data, st->data, sizeof(struct dst_cmd));
 					err = dst_process_cfg(new);
 					printk(KERN_INFO "DST_PROC_CFG %d/n",err);
@@ -400,14 +412,12 @@ static int dst_accept(void *init_data, void *schedule_data)
 	struct dst_node *n = init_data;
 	struct dst_state *st;
 	int err,i;
-	unsigned char mac_list[10][6];
-	int macs = 0;
 	
 	i = 0;
 	printk(KERN_INFO "dst_accept");
 	while (n->trans_scan_timeout && !main_st->need_exit) {
 		dprintk("%s: main_st: %p, n: %p.\n", __func__, main_st, n);
-		st = dst_check_client_mac(main_st, mac_list, &macs);
+		st = dst_check_client_mac(main_st);
 		if (IS_ERR(st))
 			continue;
 
