@@ -307,6 +307,18 @@ struct dst_state
 
 	/* Currently processed command */
 	struct dst_cmd		cmd;
+
+	/* List of accepted macs for listening state */
+	struct list_head ac_macs;
+
+	/* Connected mac */
+	unsigned char* mac;
+};
+
+struct mac_list
+{
+	struct list_head mac_entry;
+	unsigned char mac[6];
 };
 
 struct dst_info
