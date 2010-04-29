@@ -729,6 +729,7 @@ static void dst_state_free(struct dst_state *st)
 	if (st->cleanup)
 		st->cleanup(st);
 	kfree(st->data);
+	//todo : clean up mac_list	
 	kfree(st);
 }
 
@@ -754,7 +755,8 @@ struct dst_state *dst_state_alloc(struct dst_node *n)
 
 	mutex_init(&st->state_lock);
 	init_waitqueue_head(&st->thread_wait);
-
+	
+	INIT_LIST_HEAD(&st->ac_macs);
 	/*
 	 * One for processing thread, another one for node itself.
 	 */
