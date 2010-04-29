@@ -398,64 +398,73 @@ int dst_data_recv(struct dst_state *st, void *data, unsigned int size)
 	unsigned int err_mask = POLLERR | POLLHUP | POLLRDHUP;
 	unsigned int mask = err_mask | POLLIN;
 	struct dst_node *n = st->node;
-	int err = 0;
+	int err = 0, our_packet = 0;
+	
+	while (size && !err && !our_packet) {
+			revents = dst_state_poll(st);
 
-	while (size && !err) {
-		revents = dst_state_poll(st);
+			if (!(revents & mask)) {
+				DEFINE_WAIT(wait);
 
-		if (!(revents & mask)) {
-			DEFINE_WAIT(wait);
+				for (;;) {
+					prepare_to_wait(&st->thread_wait, &wait,
+							TASK_INTERRUPTIBLE);
+					if (!n->trans_scan_timeout || st->need_exit)
+						break;
 
-			for (;;) {
-				prepare_to_wait(&st->thread_wait, &wait,
-						TASK_INTERRUPTIBLE);
-				if (!n->trans_scan_timeout || st->need_exit)
-					break;
+					revents = dst_state_poll(st);
 
-				revents = dst_state_poll(st);
+					if (revents & mask)
+						break;
 
-				if (revents & mask)
-					break;
+					if (signal_pending(current))
+						break;
 
-				if (signal_pending(current))
-					break;
+					if (!schedule_timeout(HZ)) {
+						//err = dst_send_ping(st);
+						if (err)
+							return err;
+					}
 
-				if (!schedule_timeout(HZ)) {
-					//err = dst_send_ping(st);
-					if (err)
-						return err;
+					continue;
 				}
-
-				continue;
+				finish_wait(&st->thread_wait, &wait);
 			}
-			finish_wait(&st->thread_wait, &wait);
-		}
 
-		err = -ECONNRESET;
-		dst_state_lock(st);
-
-		if (		st->socket &&
-				(st->read_socket == st->socket) &&
-				(revents & POLLIN)) {
-			err = dst_data_recv_raw(st, data, size);
-			if (err > 0) {
-				data += err;
-				size -= err;
-				err = 0;
-			}
-		}
-
-		if (revents & err_mask || !st->socket) {
-			dprintk("%s: revents: %x, socket: %p, size: %u, err: %d.\n",
-					__func__, revents, st->socket, size, err);
 			err = -ECONNRESET;
+			dst_state_lock(st);
+
+			if (st->socket && (st->read_socket == st->socket) && (revents & POLLIN)) 
+			{
+				err = dst_data_recv_raw(st, data, size);
+				
+				if( !memcmp( st-> dest_mac, data + 6, ETH_ALEN) || (st-> type == LISTENING))
+				{
+					our_packet = 1;
+					printk(KERN_INFO "our packet ");
+					if (err > 0) {
+						data += err;
+						size -= err;
+						err = 0;
+					}
+				} 
+				else 
+				{
+					printk(KERN_INFO "not our packet ");
+				}
+			}
+
+			if (revents & err_mask || !st->socket) {
+				dprintk("%s: revents: %x, socket: %p, size: %u, err: %d.\n",
+						__func__, revents, st->socket, size, err);
+				err = -ECONNRESET;
+			}
+
+			dst_state_unlock(st);
+
+			if (!n->trans_scan_timeout)
+				err = -ENODEV;
 		}
-
-		dst_state_unlock(st);
-
-		if (!n->trans_scan_timeout)
-			err = -ENODEV;
-	}
 
 	return err;
 }
@@ -626,6 +635,7 @@ static int dst_recv_processing(struct dst_state *st)
 	 * new connection.
 	 */
 	st->read_socket = st->socket;
+	
 	err = dst_data_recv(st, cmd, sizeof(struct dst_cmd));
 	if (err)
 		goto out_exit;
@@ -726,7 +736,7 @@ static void dst_state_free(struct dst_state *st)
 	kfree(st);
 }
 
-struct dst_state *dst_state_alloc(struct dst_node *n)
+struct dst_state *dst_state_alloc(struct dst_node *n, int type)
 {
 	struct dst_state *st;
 	int err = -ENOMEM;
@@ -758,6 +768,15 @@ struct dst_state *dst_state_alloc(struct dst_node *n)
 	atomic_set(&st->refcnt, 2);
 
 	dprintk("%s: st: %p, n: %p.\n", __func__, st, st->node);
+	
+	if(type == LISTENING)
+	{
+		st->type = LISTENING;
+		printk(KERN_INFO "state type: listening" );
+	}else{
+		st->type = COMMON;
+		printk(KERN_INFO "state type: common" );
+	}		
 
 	return st;
 
@@ -785,7 +804,7 @@ int dst_node_init_connected(struct dst_node *n, struct dst_network_ctl *r)
 	struct sockaddr_ll* sa;
 	struct net_device *ifp;
 
-	st = dst_state_alloc(n);
+	st = dst_state_alloc(n, COMMON);
 	if (IS_ERR(st)) {
 		err = PTR_ERR(st);
 		goto err_out_exit;

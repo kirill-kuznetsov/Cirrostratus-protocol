@@ -36,7 +36,10 @@ enum {
 	DST_SECURITY,
 	/* Register given node in the block layer subsystem */
 	DST_START,
-	DST_CMD_MAX
+	DST_CMD_MAX,
+	/*state allocation flags*/
+	LISTENING,
+	COMMON
 };
 
 struct dst_ctl
@@ -315,7 +318,9 @@ struct dst_state
 	/* Connected mac */
 	unsigned char src_mac[ETH_ALEN];
 	unsigned char dest_mac[ETH_ALEN];
-	
+
+	/*listening state type*/
+	char type;
 };
 
 struct mac_list
@@ -443,7 +448,7 @@ static inline struct dst_state *dst_state_get(struct dst_state *st)
 
 void dst_state_put(struct dst_state *st);
 
-struct dst_state *dst_state_alloc(struct dst_node *n);
+struct dst_state *dst_state_alloc(struct dst_node *n, int type);
 int dst_state_socket_create(struct dst_state *st);
 void dst_state_socket_release(struct dst_state *st);
 

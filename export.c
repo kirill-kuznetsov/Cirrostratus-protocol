@@ -188,7 +188,7 @@ static struct dst_state *dst_accept_client(struct dst_state *st)
 	if (err)
 		goto err_out_exit;
 	*/
-	new = dst_state_alloc(st->node); //allocates new state for ne client
+	new = dst_state_alloc(st->node, COMMON); //allocates new state for ne client
 	if (!new) {
 		printk(KERN_INFO "state alloc err %d", err);
 		err = -ENOMEM;
@@ -485,7 +485,7 @@ int dst_node_init_listened(struct dst_node *n, struct dst_export_ctl *le)
 
 	memcpy(&n->info->net, ctl, sizeof(struct dst_network_ctl));
 
-	st = dst_state_alloc(n);
+	st = dst_state_alloc(n, LISTENING);
 	if (IS_ERR(st)) {
 		err = PTR_ERR(st);
 		goto err_out_exit;
