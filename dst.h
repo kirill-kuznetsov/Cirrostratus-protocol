@@ -18,6 +18,7 @@
 
 #include <linux/types.h>
 #include <linux/connector.h>
+#include <linux/if_ether.h>
 
 #define DST_NAMELEN		32
 #define DST_NAME		"dst"
@@ -312,13 +313,15 @@ struct dst_state
 	struct list_head ac_macs;
 
 	/* Connected mac */
-	unsigned char* mac;
+	unsigned char src_mac[ETH_ALEN];
+	unsigned char dest_mac[ETH_ALEN];
+	
 };
 
 struct mac_list
 {
 	struct list_head mac_entry;
-	unsigned char mac[6];
+	unsigned char mac[ETH_ALEN];
 };
 
 struct dst_info
@@ -492,7 +495,7 @@ int dst_serv_recv(struct dst_state *st, struct dst_state *new);
 int dst_process_cfg(struct dst_state *st);
 int dst_data_recv(struct dst_state *st, void *data, unsigned int size);
 int dst_recv_cdata(struct dst_state *st, void *cdata);
-int dst_data_send_header(struct socket *sock,
+int dst_data_send_header(struct dst_state *st,
 		void *data, unsigned int size, int more);
 
 int dst_send_bio(struct dst_state *st, struct dst_cmd *cmd, struct bio *bio);

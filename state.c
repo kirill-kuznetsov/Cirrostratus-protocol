@@ -115,31 +115,24 @@ static int dst_data_recv_header(struct socket *sock,
 /*
  * Header sending function - may block.
  */
-int dst_data_send_header(struct socket *sock,
+int dst_data_send_header(struct dst_state *st,
 		void *data, unsigned int size, int more)
 {
 	//printk(KERN_INFO "SEND HEADER");
 	struct msghdr msg;
 	struct kvec iov;
 	int err;
+	struct socket *sock = st->socket;	
 	
 	/*buffer for ethernet frame*/
 	void* buffer = kmalloc(ETH_ZLEN + size, GFP_KERNEL);
-	/*pointer to ethenet header*/
-	unsigned char* etherhead = buffer;
-	/*another pointer to ethernet header*/
-	struct ethhdr *eh = (struct ethhdr *)etherhead;	
-	
-	/*our MAC address*/
-	unsigned char src_mac[6] = {0x08, 0x00, 0x27, 0xb7, 0x1e, 0xa0};
-	/*other host MAC address*/
-	unsigned char dest_mac[6] = {0x08, 0x00, 0x27, 0x91, 0x34, 0x51};	
+	struct ethhdr *eh = (struct ethhdr *)buffer;	
 	
 	/*set the frame header*/
-	memcpy((void*)buffer, (void*)dest_mac, ETH_ALEN);
-	memcpy((void*)(buffer+ETH_ALEN), (void*)src_mac, ETH_ALEN);
+	memcpy((void*)buffer, (void*)st->dest_mac, ETH_ALEN);
+	memcpy((void*)(buffer+ETH_ALEN), (void*)st->src_mac, ETH_ALEN);
 	eh->h_proto = htons(ETH_P_ALL);
-	
+	/*set data*/
 	memcpy((void*)(buffer+14), data, (int)size);	
 	
 	iov.iov_base = buffer;
@@ -180,7 +173,7 @@ static int dst_request_remote_config(struct dst_state *st)
 
 	dst_convert_cmd(cmd);
 	printk(KERN_INFO "SEND HEADER AUTOCONF");
-	err = dst_data_send_header(st->socket, cmd, sizeof(struct dst_cmd), 0);
+	err = dst_data_send_header(st, cmd, sizeof(struct dst_cmd), 0);
 	if (err){
 		printk(KERN_INFO "dst_data_send_header error");
 		goto out;
@@ -385,7 +378,7 @@ static int dst_send_ping(struct dst_state *st)
 
 		cmd->cmd = __cpu_to_be32(DST_PING);
 
-		err = dst_data_send_header(st->socket, cmd, sizeof(struct dst_cmd), 0);
+		err = dst_data_send_header(st, cmd, sizeof(struct dst_cmd), 0);
 	}
 	dprintk("%s: st: %p, socket: %p, err: %d.\n", __func__, st, st->socket, err);
 	dst_state_unlock(st);
@@ -483,7 +476,7 @@ int dst_process_cfg(struct dst_state *st)//static
 	dst_convert_cmd(cmd);
 
 	dst_state_lock(st);
-	err = dst_data_send_header(st->socket, cmd, sizeof(struct dst_cmd), 0);
+	err = dst_data_send_header(st, cmd, sizeof(struct dst_cmd), 0);
 	dst_state_unlock(st);
 	return err;
 }
@@ -752,11 +745,13 @@ struct dst_state *dst_state_alloc(struct dst_node *n)
 
 	spin_lock_init(&st->request_lock);
 	INIT_LIST_HEAD(&st->request_list);
+	
 
 	mutex_init(&st->state_lock);
 	init_waitqueue_head(&st->thread_wait);
-	
+
 	INIT_LIST_HEAD(&st->ac_macs);
+
 	/*
 	 * One for processing thread, another one for node itself.
 	 */
@@ -787,6 +782,8 @@ int dst_node_init_connected(struct dst_node *n, struct dst_network_ctl *r)
 	printk(KERN_INFO "INIT CONNECT");
 	struct dst_state *st;
 	int err = -ENOMEM;
+	struct sockaddr_ll* sa;
+	struct net_device *ifp;
 
 	st = dst_state_alloc(n);
 	if (IS_ERR(st)) {
@@ -794,6 +791,20 @@ int dst_node_init_connected(struct dst_node *n, struct dst_network_ctl *r)
 		goto err_out_exit;
 	}
 	memcpy(&st->ctl, r, sizeof(struct dst_network_ctl));
+	sa = (struct sockaddr_ll*)&(st->ctl.addr);
+
+	/* find device by index */
+	read_lock(&dev_base_lock);
+		for_each_netdev(&init_net, ifp) {
+			if (ifp->ifindex == sa->sll_ifindex){
+				printk(KERN_INFO "number of interface %d\n", ifp->ifindex);
+				break;
+			}
+		}
+	read_unlock(&dev_base_lock);
+
+	memcpy(st->src_mac, ifp->dev_addr, ETH_ALEN);    // copy src_mac to new state
+	memcpy(st->dest_mac, sa->sll_addr, ETH_ALEN);   // copy dest_mac to new state	
 
 	err = dst_state_init_connected(st);
 	if (err){
@@ -843,7 +854,7 @@ int dst_send_bio(struct dst_state *st, struct dst_cmd *cmd, struct bio *bio)
 	int err, i = 0;
 	int flags = MSG_WAITALL;
 
-	err = dst_data_send_header(st->socket, cmd,
+	err = dst_data_send_header(st, cmd,
 		sizeof(struct dst_cmd) + c->crypto_attached_size, bio->bi_vcnt);
 	if (err)
 		goto err_out_exit;
@@ -888,7 +899,7 @@ int dst_trans_send(struct dst_trans *t)
 	if (bio_data_dir(bio) == WRITE) {
 		err = dst_send_bio(st, &t->cmd, t->bio);
 	} else {
-		err = dst_data_send_header(st->socket, &t->cmd,
+		err = dst_data_send_header(st, &t->cmd,
 				sizeof(struct dst_cmd), 0);
 	}
 	if (err)
