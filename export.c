@@ -249,9 +249,12 @@ struct dst_state *dst_check_client_mac(struct dst_state *st){
 	unsigned char *test_mac;
 	struct dst_state *new;
 	struct mac_list *m_list;
+	struct sockaddr_ll* sa;
+
+	sa = (struct sockaddr_ll*)&(st->ctl.addr);
 	
 	st->read_socket = st->socket;
-	
+
 	err = dst_data_recv(st, buf, req_len);
 	if(err == req_len) {
 		printk(KERN_INFO "recieve message");
@@ -260,7 +263,7 @@ struct dst_state *dst_check_client_mac(struct dst_state *st){
 	else if(err > 0) {
 		printk(KERN_INFO "no recieve message");	
 	}
-
+	
 	memcpy((void*)&client_mac, (void *)(buf+ETH_ALEN), ETH_ALEN); // receive mac
 	memcpy((void*)cmd, (void*)(buf+14), sizeof(struct dst_cmd));  // receive cmd
 	
@@ -286,9 +289,10 @@ struct dst_state *dst_check_client_mac(struct dst_state *st){
 					new->permissions = permissions;
 					m_list = kmalloc(sizeof(struct mac_list), GFP_KERNEL);	
 					memcpy(m_list->mac, client_mac, ETH_ALEN);
-					//m_list->mac_entry = st->ac_
+					
 					dst_print_mac(m_list->mac);				
-					new->mac = client_mac;
+					memcpy(new->dest_mac, client_mac, ETH_ALEN);    // copy dest_mac to new state
+					memcpy(new->src_mac, sa->sll_addr, ETH_ALEN);   // copy src_mac to new state
 					list_add_tail(&m_list->mac_entry, &st->ac_macs); //adding new connected mac to list of accepted ones
 					list_for_each_entry(m_list, &st->ac_macs, mac_entry)
 						{	
@@ -761,7 +765,7 @@ int dst_export_send_bio(struct bio *bio)
 	if (bio_data_dir(bio) == WRITE) {
 		/* ... or just confirmation that writing has completed. */
 		cmd->size = cmd->csize = 0;
-		err = dst_data_send_header(st->socket, cmd,
+		err = dst_data_send_header(st, cmd,
 				sizeof(struct dst_cmd), 0);
 		if (err)
 			goto err_out_unlock;
