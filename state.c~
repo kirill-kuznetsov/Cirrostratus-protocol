@@ -166,7 +166,7 @@ static int dst_request_remote_config(struct dst_state *st)
 	struct dst_node *n = st->node;
 	int err = -EINVAL;
 	struct dst_cmd *cmd = st->data;
-	//void *buf = kmalloc( 62, GFP_KERNEL);
+	void *buf = kmalloc( 62, GFP_KERNEL);
 	
 	memset(cmd, 0, sizeof(struct dst_cmd));
 	cmd->cmd = DST_CFG;
@@ -181,12 +181,12 @@ static int dst_request_remote_config(struct dst_state *st)
 	printk(KERN_INFO "RECEIVE HEADER AUTOCONF");
 	//err = dst_data_recv_header(st->socket, cmd, sizeof(struct dst_cmd), 1);
 	st->read_socket = st->socket;
-	err = dst_data_recv( st, cmd, sizeof(struct dst_cmd));
+	err = dst_data_recv( st, buf, 62);
 	if (err){
 		printk(KERN_INFO "dst_data_recv_header error");
 		goto out;
 	}
-	//memcpy((void*)cmd, (void*)(buf+14), sizeof(struct dst_cmd));
+	memcpy((void*)cmd, (void*)(buf+14), sizeof(struct dst_cmd));
 	dst_convert_cmd(cmd);
 
 	if (cmd->cmd != DST_CFG) {
@@ -386,24 +386,6 @@ static int dst_send_ping(struct dst_state *st)
 	return err;
 }
 
-int check_mac(struct dst_state *st,unsigned char *ch_mac)
-{	
-	int i, j, contains;
-	struct mac_list *m_list;
-	unsigned char *mac;
-	contains = 0;
-	list_for_each_entry(m_list, &st->ac_macs, mac_entry)
-	{	
-		mac = &m_list->mac;		
-		contains = !memcmp(mac, ch_mac, ETH_ALEN);
-		if(contains)
-			break;			
-	}
-	//dst_print_mac( mac );
-	printk(KERN_INFO "contains: %d", contains);	
-	return contains;
-}
-
 /*
  * Receiving function, which should either return error or read
  * whole block request. If there was no traffic for a one second,
@@ -417,8 +399,7 @@ int dst_data_recv(struct dst_state *st, void *data, unsigned int size)
 	unsigned int mask = err_mask | POLLIN;
 	struct dst_node *n = st->node;
 	int err = 0, our_packet = 0;
-	void *buf = kmalloc(size + ETH_HLEN, GFP_KERNEL);
-	printk(KERN_INFO "size+ETH_HLEN = %d\n", size + ETH_HLEN);	
+	void *buf = kmalloc(sizeof(data) + ETH_HLEN, GFP_KERNEL);	
 
 	while (size && !err && !our_packet) {
 			revents = dst_state_poll(st);
@@ -456,20 +437,12 @@ int dst_data_recv(struct dst_state *st, void *data, unsigned int size)
 
 			if (st->socket && (st->read_socket == st->socket) && (revents & POLLIN)) 
 			{
-				err = dst_data_recv_raw(st, buf, size + ETH_HLEN);
+				err = dst_data_recv_raw(st, buf, size);				
 				
-				if(st-> type == LISTENING){
-					memcpy(st->dest_mac, buf + 6, ETH_ALEN);
-					if(!check_mac(st, st->dest_mac)){
-						our_packet = 1;
-						memcpy(data, buf+ETH_HLEN, size);
-						printk(KERN_INFO "listening, our_packet");
-					}
-				}
-				else if( !memcmp( st-> dest_mac, buf + 6, ETH_ALEN))
+				if( !memcmp( st-> dest_mac, buf + 6, ETH_ALEN) || (st-> type == LISTENING))
 				{
 					our_packet = 1;
-					memcpy(data, buf+ETH_HLEN, size);
+					memcpy(data, buf+ETH_HLEN, sizeof(data));
 					printk(KERN_INFO "our packet ");
 					if (err > 0) {
 						data += err;

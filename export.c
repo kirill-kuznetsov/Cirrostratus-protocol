@@ -95,23 +95,6 @@ void dst_print_mac(unsigned char *mac)
 	printk(KERN_INFO "%d:%d:%d:%d:%d:%d", mac[0],mac[1], mac[2], mac[3], mac[4], mac[5]);
 	
 }
-int check_mac(struct dst_state *st,unsigned char *ch_mac)
-{	
-	int i, j, contains;
-	struct mac_list *m_list;
-	unsigned char *mac;
-	contains = 0;
-	list_for_each_entry(m_list, &st->ac_macs, mac_entry)
-	{	
-		mac = &m_list->mac;		
-		contains = !memcmp(mac, ch_mac, ETH_ALEN);
-		if(contains)
-			break;			
-	}
-	//dst_print_mac( mac );
-	printk(KERN_INFO "contains: %d", contains);	
-	return contains;
-}
 
 /*
  * Accept new client: allocate appropriate network state and check permissions.
@@ -241,11 +224,11 @@ err_out_exit:
  */
 struct dst_state *dst_check_client_mac(struct dst_state *st){
 
-	void *buf = kmalloc(62, GFP_KERNEL);
+	//void *buf = kmalloc(62, GFP_KERNEL);
 	struct dst_cmd *cmd = st->data;
-	int req_len = 62;
+	//int req_len = 62;
 	int i, err, contains, permissions;
-	unsigned char client_mac[6];
+	//unsigned char client_mac[6];
 	unsigned char *test_mac;
 	struct dst_state *new;
 	struct mac_list *m_list;
@@ -255,63 +238,59 @@ struct dst_state *dst_check_client_mac(struct dst_state *st){
 	
 	st->read_socket = st->socket;
 
-	err = dst_data_recv(st, buf, req_len);
-	if(err == req_len) {
-		printk(KERN_INFO "recieve message");
-		i++;
-	}
-	else if(err > 0) {
+	err = dst_data_recv(st, cmd, sizeof(struct dst_cmd));
+
+	if(err > 0) {
 		printk(KERN_INFO "no recieve message");	
 	}
 	
-	memcpy((void*)&client_mac, (void *)(buf+ETH_ALEN), ETH_ALEN); // receive mac
-	memcpy((void*)cmd, (void*)(buf+14), sizeof(struct dst_cmd));  // receive cmd
+	//memcpy((void*)&client_mac, (void *)(buf+ETH_ALEN), ETH_ALEN); // receive mac
+	//memcpy((void*)cmd, (void*)(buf+14), sizeof(struct dst_cmd));  // receive cmd
 	
-	contains = check_mac(st,client_mac);
-	if( contains ){
+	//contains = check_mac(st,client_mac);
+	/*if( contains ){
 		err = -ENOMEM;
 		printk(KERN_INFO "mac contains");
-	}		
+	}*/		
+	
+	permissions = dst_check_permissions( st, st->dest_mac);
+	printk(KERN_INFO "permissions: %d", permissions);		
+	if( permissions <= 0)
+		err = -ENOMEM; //todo
 	else
-	{
-		permissions = dst_check_permissions( st, client_mac);
-		printk(KERN_INFO "permissions: %d", permissions);		
-		if( permissions <= 0)
-			err = -ENOMEM; //todo
-		else
-		{	
-			dst_convert_cmd(cmd);
-			switch (cmd->cmd) {
-				case DST_CFG:
-					printk(KERN_INFO "mac to accept");
-					dst_print_mac( client_mac);	
-					new = dst_accept_client(st);
-					new->permissions = permissions;
-					m_list = kmalloc(sizeof(struct mac_list), GFP_KERNEL);	
-					memcpy(m_list->mac, client_mac, ETH_ALEN);
+	{	
+		dst_convert_cmd(cmd);
+		switch (cmd->cmd) {
+			case DST_CFG:
+				printk(KERN_INFO "mac to accept");
+				dst_print_mac(st->dest_mac);	
+				new = dst_accept_client(st);
+				new->permissions = permissions;
+				m_list = kmalloc(sizeof(struct mac_list), GFP_KERNEL);	
+				memcpy(m_list->mac, st->dest_mac, ETH_ALEN);
 					
-					dst_print_mac(m_list->mac);				
-					memcpy(new->dest_mac, client_mac, ETH_ALEN);    // copy dest_mac to new state
-					memcpy(new->src_mac, sa->sll_addr, ETH_ALEN);   // copy src_mac to new state
-					list_add_tail(&m_list->mac_entry, &st->ac_macs); //adding new connected mac to list of accepted ones
-					list_for_each_entry(m_list, &st->ac_macs, mac_entry)
-						{	
-							test_mac = &m_list->mac;
-							printk(KERN_INFO "test print mac: /n");		
-							dst_print_mac(test_mac);			
-						}
-					memcpy(new->data, st->data, sizeof(struct dst_cmd));
-					err = dst_process_cfg(new);
-					printk(KERN_INFO "DST_PROC_CFG %d/n",err);
-					break;
-				default:
-					printk(KERN_INFO "DST CMD ERR");
-					err = -ENOMEM; //todo
-					break;
-			}
+				dst_print_mac(m_list->mac);				
+				memcpy(new->dest_mac, st->dest_mac, ETH_ALEN);    // copy dest_mac to new state
+				memcpy(new->src_mac, sa->sll_addr, ETH_ALEN);   // copy src_mac to new state
+				list_add_tail(&m_list->mac_entry, &st->ac_macs); //adding new connected mac to list of accepted ones
+				list_for_each_entry(m_list, &st->ac_macs, mac_entry)
+					{	
+						test_mac = &m_list->mac;
+						printk(KERN_INFO "test print mac: /n");		
+						dst_print_mac(test_mac);			
+					}
+				memcpy(new->data, st->data, sizeof(struct dst_cmd));
+				err = dst_process_cfg(new);
+				printk(KERN_INFO "DST_PROC_CFG %d/n",err);
+				break;
+			default:
+				printk(KERN_INFO "DST CMD ERR");
+				err = -ENOMEM; //todo
+				break;
 		}
 	}
-	kfree(buf);
+	
+	//kfree(buf);
 	if(err){
 		new = ERR_PTR(err);
 	}
