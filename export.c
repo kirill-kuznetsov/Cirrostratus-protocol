@@ -271,6 +271,7 @@ struct dst_state *dst_check_client_mac(struct dst_state *st){
 					
 				dst_print_mac(m_list->mac);				
 				memcpy(new->dest_mac, st->dest_mac, ETH_ALEN);    // copy dest_mac to new state
+				
 				memcpy(new->src_mac, sa->sll_addr, ETH_ALEN);   // copy src_mac to new state
 				list_add_tail(&m_list->mac_entry, &st->ac_macs); //adding new connected mac to list of accepted ones
 				list_for_each_entry(m_list, &st->ac_macs, mac_entry)

@@ -368,7 +368,7 @@ static int dst_data_recv_raw(struct dst_state *st, void *buf, u64 size)
  */
 static int dst_send_ping(struct dst_state *st)
 {
-	//printk(KERN_INFO "PING TO DETECT FAILED");
+	printk(KERN_INFO "PING TO DETECT FAILED");
 	struct dst_cmd *cmd = st->data;
 	int err = -ECONNRESET;
 
@@ -459,7 +459,11 @@ int dst_data_recv(struct dst_state *st, void *data, unsigned int size)
 				err = dst_data_recv_raw(st, buf, size + ETH_HLEN);
 				
 				if(st-> type == LISTENING){
+					printk(KERN_INFO "dest before");
+					dst_print_mac(st->dest_mac);
 					memcpy(st->dest_mac, buf + 6, ETH_ALEN);
+					printk(KERN_INFO "dest after");
+					dst_print_mac(st->dest_mac);
 					if(!check_mac(st, st->dest_mac)){
 						our_packet = 1;
 						memcpy(data, buf+ETH_HLEN, size);
@@ -852,7 +856,11 @@ int dst_node_init_connected(struct dst_node *n, struct dst_network_ctl *r)
 	read_unlock(&dev_base_lock);
 
 	memcpy(st->src_mac, ifp->dev_addr, ETH_ALEN);    // copy src_mac to new state
+	printk(KERN_INFO "dest before");
+	dst_print_mac(st->dest_mac);
 	memcpy(st->dest_mac, sa->sll_addr, ETH_ALEN);   // copy dest_mac to new state	
+	printk(KERN_INFO "dest after");
+	dst_print_mac(st->dest_mac);
 
 	err = dst_state_init_connected(st);
 	if (err){
@@ -911,8 +919,8 @@ int dst_send_bio(struct dst_state *st, struct dst_cmd *cmd, struct bio *bio)
 		if (i < bio->bi_vcnt - 1)
 			flags |= MSG_MORE;
 
-		err = kernel_sendpage(st->socket, bv->bv_page, bv->bv_offset,
-				bv->bv_len, flags);
+		//err = kernel_sendpage(st->socket, bv->bv_page, bv->bv_offset,
+			//	bv->bv_len, flags);
 		if (err <= 0)
 			goto err_out_exit;
 	}
