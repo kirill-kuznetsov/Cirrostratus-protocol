@@ -133,10 +133,10 @@ int dst_data_send_header(struct dst_state *st,
 	memcpy((void*)(buffer+ETH_ALEN), (void*)st->src_mac, ETH_ALEN);
 	eh->h_proto = htons(ETH_P_ALL);
 	/*set data*/
-	memcpy((void*)(buffer+14), data, (int)size);	
+	memcpy((void*)(buffer + ETH_HLEN), data, (int)size);	
 	
 	iov.iov_base = buffer;
-	iov.iov_len = size+14;
+	iov.iov_len = size + ETH_HLEN;
 
 	msg.msg_iov = (struct iovec *)&iov;
 	msg.msg_iovlen = 1;
@@ -147,7 +147,7 @@ int dst_data_send_header(struct dst_state *st,
 	msg.msg_flags = MSG_WAITALL | (more)?MSG_MORE:0;
 
 	err = kernel_sendmsg(sock, &msg, &iov, 1, iov.iov_len);
-	if (err != size+14) {
+	if (err != size + ETH_HLEN) {
 		printk(KERN_INFO "kernel_sendmsg error!!!!!!!!!! %d\n", err);
 		dprintk("%s: size: %u, more: %d, err: %d.\n",
 				__func__, size, more, err);
@@ -156,6 +156,53 @@ int dst_data_send_header(struct dst_state *st,
 
 	return 0;
 }
+
+ssize_t cs_sendpage(struct dst_state *st, struct page *page, int offset, size_t size, int flags)
+{
+        ssize_t res;
+	int send_size = 0;
+        struct msghdr msg = {.msg_flags = flags};
+        struct kvec iov;
+        char *kaddr = kmap(page);
+	void* buffer;
+	struct ethhdr *eh; 
+	struct socket *sock = st->socket;
+
+	kaddr = kaddr + offset;
+	while(size != 0){
+		
+		if(size >= ETH_DATA_LEN)
+			send_size = ETH_DATA_LEN;
+		else
+			send_size = size;
+
+		buffer = kmalloc(send_size + ETH_HLEN, GFP_KERNEL);
+		eh = (struct ethhdr *)buffer;
+		iov.iov_base = buffer;
+        	iov.iov_len = send_size + ETH_HLEN;
+		
+		/*set the frame header*/
+		memcpy((void*)buffer, (void*)st->dest_mac, ETH_ALEN);
+		memcpy((void*)(buffer+ETH_ALEN), (void*)st->src_mac, ETH_ALEN);
+		eh->h_proto = htons(ETH_P_ALL);
+		/*set data*/
+		memcpy((void*)(buffer+ETH_HLEN), kaddr, send_size);
+		
+		res = kernel_sendmsg(sock, &msg, &iov, 1, iov.iov_len);
+		if(res > 0)
+			size -= send_size;
+		else {
+			return res;
+			printk(KERN_INFO "res: %d\n", res);
+		}
+		kaddr += send_size;
+		printk(KERN_INFO "size after: %d\n", size);
+		kfree(buffer);
+	}
+        kunmap(page);
+        return size;
+}
+
 
 /*
  * Block autoconfiguration: request size of the storage and permissions.
@@ -331,7 +378,7 @@ static void inline dst_state_reset(struct dst_state *st)
  */
 static int dst_data_recv_raw(struct dst_state *st, void *buf, u64 size)
 {
-	printk(KERN_INFO "RECV RAW");
+	//printk(KERN_INFO "RECV RAW");
 	struct msghdr msg;
 	struct kvec iov;
 	int err;
@@ -411,14 +458,14 @@ int check_mac(struct dst_state *st,unsigned char *ch_mac)
  */
 int dst_data_recv(struct dst_state *st, void *data, unsigned int size)
 {
-	printk(KERN_INFO "DATA RCV");
+	//printk(KERN_INFO "DATA RCV");
 	unsigned int revents = 0;
 	unsigned int err_mask = POLLERR | POLLHUP | POLLRDHUP;
 	unsigned int mask = err_mask | POLLIN;
 	struct dst_node *n = st->node;
 	int err = 0, our_packet = 0;
 	void *buf = kmalloc(size + ETH_HLEN, GFP_KERNEL);
-	printk(KERN_INFO "size+ETH_HLEN = %d\n", size + ETH_HLEN);	
+	//printk(KERN_INFO "size+ETH_HLEN = %d\n", size + ETH_HLEN);	
 
 	while (size && !err && !our_packet) {
 			revents = dst_state_poll(st);
@@ -459,31 +506,32 @@ int dst_data_recv(struct dst_state *st, void *data, unsigned int size)
 				err = dst_data_recv_raw(st, buf, size + ETH_HLEN);
 				
 				if(st-> type == LISTENING){
-					printk(KERN_INFO "dest before");
-					dst_print_mac(st->dest_mac);
+
+					printk(KERN_INFO "listening");
 					memcpy(st->dest_mac, buf + 6, ETH_ALEN);
 					printk(KERN_INFO "dest after");
 					dst_print_mac(st->dest_mac);
 					if(!check_mac(st, st->dest_mac)){
-						our_packet = 1;
+						//our_packet = 1;
 						memcpy(data, buf+ETH_HLEN, size);
 						printk(KERN_INFO "listening, our_packet");
 					}
 				}
 				else if( !memcmp( st-> dest_mac, buf + 6, ETH_ALEN))
 				{
-					our_packet = 1;
+					//our_packet = 1;
 					memcpy(data, buf+ETH_HLEN, size);
-					printk(KERN_INFO "our packet ");
-					if (err > 0) {
-						data += err;
-						size -= err;
-						err = 0;
-					}
+					//printk(KERN_INFO "our packet ");
 				} 
 				else 
 				{
-					printk(KERN_INFO "not our packet ");
+					//printk(KERN_INFO "not our packet ");
+				}
+				// if we need receve many packets
+				if (err > 0) {
+						data += (err-ETH_HLEN);
+						size -= (err-ETH_HLEN);
+						err = 0;
 				}
 			}
 
@@ -507,11 +555,11 @@ int dst_data_recv(struct dst_state *st, void *data, unsigned int size)
  */
 int dst_process_cfg(struct dst_state *st)//static
 {
-	printk(KERN_INFO "PROCESS CFG: SEND AUTOCONF REPLY");
+	//printk(KERN_INFO "PROCESS CFG: SEND AUTOCONF REPLY");
 	struct dst_node *n = st->node;
 	struct dst_cmd *cmd = st->data;
 	int err;
-	printk(KERN_INFO "node size %d", n->size);
+	//printk(KERN_INFO "node size %d", n->size);
 	cmd->sector = n->size;
 	cmd->rw = st->permissions;
 
@@ -651,7 +699,7 @@ err_out_exit:
  */
 static int dst_recv_processing(struct dst_state *st)
 {
-	printk(KERN_INFO "RECV PROCESSING");
+	//printk(KERN_INFO "RECV PROCESSING");
 	int err = -EINTR;
 	struct dst_cmd *cmd = st->data;
 
@@ -728,14 +776,14 @@ static int dst_recv(void *init_data, void *schedule_data)
 	while (n->trans_scan_timeout && !st->need_exit) {
 		err = dst_recv_processing(st);
 		if (err < 0) {
-			if (!st->ctl.type)
+			/*if (!st->ctl.type)
 				break;
 
 			if (!n->trans_scan_timeout || st->need_exit)
 				break;
-
+			printk(KERN_INFO "dst_recv err < 0; call dst_state_reset, err = %d\n" , err);
 			dst_state_reset(st);
-			msleep(1000);
+			msleep(1000);*/
 		}
 	}
 
@@ -836,7 +884,6 @@ int dst_node_init_connected(struct dst_node *n, struct dst_network_ctl *r)
 	int err = -ENOMEM;
 	struct sockaddr_ll* sa;
 	struct net_device *ifp;
-
 	st = dst_state_alloc(n, COMMON);
 	if (IS_ERR(st)) {
 		err = PTR_ERR(st);
@@ -915,12 +962,22 @@ int dst_send_bio(struct dst_state *st, struct dst_cmd *cmd, struct bio *bio)
 	if (err)
 		goto err_out_exit;
 
-	bio_for_each_segment(bv, bio, i) {
+	/*bio_for_each_segment(bv, bio, i) {
 		if (i < bio->bi_vcnt - 1)
 			flags |= MSG_MORE;
 
 		//err = kernel_sendpage(st->socket, bv->bv_page, bv->bv_offset,
 			//	bv->bv_len, flags);
+		if (err <= 0)
+			goto err_out_exit;
+	}*/
+
+	bio_for_each_segment(bv, bio, i) {
+		if (i < bio->bi_vcnt - 1)
+			flags |= MSG_MORE;
+
+		err = cs_sendpage(st, bv->bv_page, bv->bv_offset,
+				bv->bv_len, flags);
 		if (err <= 0)
 			goto err_out_exit;
 	}

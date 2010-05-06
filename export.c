@@ -223,12 +223,8 @@ err_out_exit:
  * if command is DST_CFG then add mac to list and call dst_accept_client.
  */
 struct dst_state *dst_check_client_mac(struct dst_state *st){
-
-	//void *buf = kmalloc(62, GFP_KERNEL);
 	struct dst_cmd *cmd = st->data;
-	//int req_len = 62;
 	int i, err, contains, permissions;
-	//unsigned char client_mac[6];
 	unsigned char *test_mac;
 	struct dst_state *new;
 	struct mac_list *m_list;
@@ -242,16 +238,7 @@ struct dst_state *dst_check_client_mac(struct dst_state *st){
 
 	if(err > 0) {
 		printk(KERN_INFO "no recieve message");	
-	}
-	
-	//memcpy((void*)&client_mac, (void *)(buf+ETH_ALEN), ETH_ALEN); // receive mac
-	//memcpy((void*)cmd, (void*)(buf+14), sizeof(struct dst_cmd));  // receive cmd
-	
-	//contains = check_mac(st,client_mac);
-	/*if( contains ){
-		err = -ENOMEM;
-		printk(KERN_INFO "mac contains");
-	}*/		
+	}		
 	
 	permissions = dst_check_permissions( st, st->dest_mac);
 	printk(KERN_INFO "permissions: %d", permissions);		
@@ -262,7 +249,7 @@ struct dst_state *dst_check_client_mac(struct dst_state *st){
 		dst_convert_cmd(cmd);
 		switch (cmd->cmd) {
 			case DST_CFG:
-				printk(KERN_INFO "mac to accept");
+				printk(KERN_INFO "mac to accept(dest_mac)");
 				dst_print_mac(st->dest_mac);	
 				new = dst_accept_client(st);
 				new->permissions = permissions;
@@ -270,10 +257,11 @@ struct dst_state *dst_check_client_mac(struct dst_state *st){
 				memcpy(m_list->mac, st->dest_mac, ETH_ALEN);
 					
 				dst_print_mac(m_list->mac);				
-				memcpy(new->dest_mac, st->dest_mac, ETH_ALEN);    // copy dest_mac to new state
+
+				memcpy(new->dest_mac, st->dest_mac, ETH_ALEN);   	// copy dest_mac to new state
+				memcpy(new->src_mac, sa->sll_addr, ETH_ALEN);   	// copy src_mac to new state
+				list_add_tail(&m_list->mac_entry, &st->ac_macs); 	//adding new connected mac to list of accepted ones
 				
-				memcpy(new->src_mac, sa->sll_addr, ETH_ALEN);   // copy src_mac to new state
-				list_add_tail(&m_list->mac_entry, &st->ac_macs); //adding new connected mac to list of accepted ones
 				list_for_each_entry(m_list, &st->ac_macs, mac_entry)
 					{	
 						test_mac = &m_list->mac;
@@ -401,12 +389,14 @@ static int dst_accept(void *init_data, void *schedule_data)
 	printk(KERN_INFO "dst_accept");
 	while (n->trans_scan_timeout && !main_st->need_exit) {
 		dprintk("%s: main_st: %p, n: %p.\n", __func__, main_st, n);
+		printk(KERN_INFO "dst_accept_middle(before dst_check_client_mac)");
 		st = dst_check_client_mac(main_st);
 		if (IS_ERR(st))
 			continue;
 
 		err = dst_state_schedule_receiver(st);
 		if (!err) {
+			printk(KERN_INFO "dst_accept_middle(in if)");
 			while (n->trans_scan_timeout) {
 				err = wait_event_interruptible_timeout(st->thread_wait,
 						!list_empty(&st->request_list) ||
@@ -415,14 +405,20 @@ static int dst_accept(void *init_data, void *schedule_data)
 					HZ);
 
 				if (!n->trans_scan_timeout || st->need_exit)
+				{	
+					printk(KERN_INFO "first if");
 					break;
-
+				}
 				if (list_empty(&st->request_list))
+				{
+					printk(KERN_INFO "second if");
 					continue;
-
+				}
 				err = dst_export_process_request_queue(st);
-				if (err)
+				if (err){
+					printk(KERN_INFO "third if");
 					break;
+				}
 			}
 
 			st->need_exit = 1;
