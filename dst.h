@@ -495,7 +495,7 @@ static inline struct dst_node *dst_node_get(struct dst_node *n)
 	atomic_inc(&n->refcnt);
 	return n;
 }
-
+void dst_print_mac(unsigned char *mac);
 int dst_serv_recv(struct dst_state *st, struct dst_state *new);
 int dst_process_cfg(struct dst_state *st);
 int dst_data_recv(struct dst_state *st, void *data, unsigned int size);

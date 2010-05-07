@@ -29,7 +29,7 @@ module_param(dst_mempool_num, int, 0644);
  */
 static inline int dst_trans_cmp(dst_gen_t gen, dst_gen_t new)
 {
-	printk(KERN_INFO "trans_cmp");
+	//printk(KERN_INFO "trans_cmp");
 	if (gen < new)
 		return 1;
 	if (gen > new)
@@ -45,7 +45,7 @@ struct dst_trans *dst_trans_search(struct dst_node *node, dst_gen_t gen)
 	struct dst_trans *t, *ret = NULL;
 	int cmp;
 	
-	printk(KERN_INFO "trans_search");
+	//printk(KERN_INFO "trans_search");
 	while (n) {
 		t = rb_entry(n, struct dst_trans, trans_entry);
 
@@ -74,7 +74,7 @@ static int dst_trans_insert(struct dst_trans *new)
 	struct dst_trans *ret = NULL, *t;
 	int cmp;
 
-	printk(KERN_INFO "trans_insert");
+	//printk(KERN_INFO "trans_insert");
 	while (*n) {
 		parent = *n;
 
@@ -117,7 +117,7 @@ int dst_trans_remove_nolock(struct dst_trans *t)
 {
 	struct dst_node *n = t->n;
 
-	printk(KERN_INFO "remove_nolock");
+	//printk(KERN_INFO "remove_nolock");
 	if (t->trans_entry.rb_parent_color) {
 		rb_erase(&t->trans_entry, &n->trans_root);
 		t->trans_entry.rb_parent_color = 0;
@@ -130,7 +130,7 @@ int dst_trans_remove(struct dst_trans *t)
 	int ret;
 	struct dst_node *n = t->n;
 	
-	printk(KERN_INFO "trans_remove");
+	//printk(KERN_INFO "trans_remove");
 	mutex_lock(&n->trans_lock);
 	ret = dst_trans_remove_nolock(t);
 	mutex_unlock(&n->trans_lock);
@@ -144,7 +144,7 @@ int dst_trans_remove(struct dst_trans *t)
  */
 void dst_trans_put(struct dst_trans *t)
 {	
-	printk(KERN_INFO "trans_put");
+	//printk(KERN_INFO "trans_put");
 	if (atomic_dec_and_test(&t->refcnt)) {
 		struct bio *bio = t->bio;
 
@@ -168,7 +168,7 @@ int dst_process_bio(struct dst_node *n, struct bio *bio)
 	struct dst_trans *t;
 	int err = -ENOMEM;
 	
-	printk(KERN_INFO "process_bio");
+	//printk(KERN_INFO "process_bio");
 	t = mempool_alloc(n->trans_pool, GFP_NOFS);
 	if (!t)
 		goto err_out_exit;
@@ -222,7 +222,7 @@ static void dst_trans_scan(struct work_struct *work)
 	unsigned long timeout = n->trans_scan_timeout;
 	int num = 10 * n->trans_max_retries;
 	
-	printk(KERN_INFO "dst_trans_scan");
+	//printk(KERN_INFO "dst_trans_scan");
 	mutex_lock(&n->trans_lock);
 
 	for (rb_node = rb_first(&n->trans_root); rb_node; ) {
@@ -277,7 +277,7 @@ void dst_node_trans_exit(struct dst_node *n)
 	struct dst_trans *t;
 	struct rb_node *rb_node;
 
-	printk(KERN_INFO "node_trans_exit");
+	//printk(KERN_INFO "node_trans_exit");
 	if (!n->trans_cache)
 		return;
 
@@ -317,7 +317,7 @@ int dst_node_trans_init(struct dst_node *n, unsigned int size)
 	 * hash table, but be still alive, so subsequent creation of the node
 	 * with the same name may collide with existing cache name.
 	 */
-	printk(KERN_INFO "dst_trans_init");
+	//printk(KERN_INFO "dst_trans_init");
 	snprintf(n->cache_name, sizeof(n->cache_name), "%s-%p", n->name, n);
 
 	n->trans_cache = kmem_cache_create(n->cache_name,

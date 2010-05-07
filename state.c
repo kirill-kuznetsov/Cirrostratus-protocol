@@ -54,7 +54,7 @@ static int dst_queue_wake(wait_queue_t *wait, unsigned mode, int sync, void *key
 static void dst_queue_func(struct file *file, wait_queue_head_t *whead,
 				 poll_table *pt)
 {
-	printk(KERN_INFO "QUEUE FUNC");
+	//printk(KERN_INFO "QUEUE FUNC");
 	struct dst_state *st = container_of(pt, struct dst_poll_helper, pt)->st;
 
 	st->whead = whead;
@@ -88,7 +88,7 @@ int dst_poll_init(struct dst_state *st)
 static int dst_data_recv_header(struct socket *sock,
 		void *data, unsigned int size, int block)
 {
-	printk(KERN_INFO "RECV HEADER");
+	//printk(KERN_INFO "RECV HEADER");
 	struct msghdr msg;
 	struct kvec iov;
 	int err;
@@ -148,7 +148,7 @@ int dst_data_send_header(struct dst_state *st,
 
 	err = kernel_sendmsg(sock, &msg, &iov, 1, iov.iov_len);
 	if (err != size + ETH_HLEN) {
-		printk(KERN_INFO "kernel_sendmsg error!!!!!!!!!! %d\n", err);
+		printk(KERN_INFO "kernel_sendmsg error %d\n", err);
 		dprintk("%s: size: %u, more: %d, err: %d.\n",
 				__func__, size, more, err);
 		return -1;
@@ -196,7 +196,7 @@ ssize_t cs_sendpage(struct dst_state *st, struct page *page, int offset, size_t 
 			printk(KERN_INFO "res: %d\n", res);
 		}
 		kaddr += send_size;
-		printk(KERN_INFO "size after: %d\n", size);
+		//printk(KERN_INFO "size after: %d\n", size);
 		kfree(buffer);
 	}
         kunmap(page);
@@ -209,7 +209,7 @@ ssize_t cs_sendpage(struct dst_state *st, struct page *page, int offset, size_t 
  */
 static int dst_request_remote_config(struct dst_state *st)
 {
-	printk(KERN_INFO "BLOCK AUTOCONF REQUEST");
+	//printk(KERN_INFO "BLOCK AUTOCONF REQUEST");
 	struct dst_node *n = st->node;
 	int err = -EINVAL;
 	struct dst_cmd *cmd = st->data;
@@ -219,13 +219,13 @@ static int dst_request_remote_config(struct dst_state *st)
 	cmd->cmd = DST_CFG;
 
 	dst_convert_cmd(cmd);
-	printk(KERN_INFO "SEND HEADER AUTOCONF");
+	//printk(KERN_INFO "SEND HEADER AUTOCONF");
 	err = dst_data_send_header(st, cmd, sizeof(struct dst_cmd), 0);
 	if (err){
 		printk(KERN_INFO "dst_data_send_header error");
 		goto out;
 	}
-	printk(KERN_INFO "RECEIVE HEADER AUTOCONF");
+	//printk(KERN_INFO "RECEIVE HEADER AUTOCONF");
 	//err = dst_data_recv_header(st->socket, cmd, sizeof(struct dst_cmd), 1);
 	st->read_socket = st->socket;
 	err = dst_data_recv( st, cmd, sizeof(struct dst_cmd));
@@ -323,7 +323,7 @@ static int dst_state_init_connected(struct dst_state *st)
 	int err;
 	struct dst_network_ctl *ctl = &st->ctl;
 	
-	printk(KERN_INFO "state_init_connected");
+	//printk(KERN_INFO "state_init_connected");
 	err = dst_state_socket_create(st);
 	if (err)
 		goto err_out_exit;
@@ -334,12 +334,12 @@ static int dst_state_init_connected(struct dst_state *st)
 		goto err_out_release;*/
 	err = kernel_bind(st->socket, (struct sockaddr *)&ctl->addr,
 			ctl->addr.sa_data_len);
-	if(!err){
+	/*if(!err){
 		printk(KERN_INFO "BIND OK!!!!");
 	}
 	if (err){
 		printk(KERN_INFO "NO BIND!!!!");
-	}
+	}*/ //todo: deal with error
 	err = dst_poll_init(st);
 	if (err)
 		goto err_out_release;
@@ -415,7 +415,7 @@ static int dst_data_recv_raw(struct dst_state *st, void *buf, u64 size)
  */
 static int dst_send_ping(struct dst_state *st)
 {
-	printk(KERN_INFO "PING TO DETECT FAILED");
+	//printk(KERN_INFO "PING TO DETECT FAILED");
 	struct dst_cmd *cmd = st->data;
 	int err = -ECONNRESET;
 
@@ -489,8 +489,8 @@ int dst_data_recv(struct dst_state *st, void *data, unsigned int size)
 
 					if (!schedule_timeout(HZ)) {
 						//err = dst_send_ping(st);
-						if (err)
-							return err;
+						//if (err)
+							//return err;
 					}
 
 					continue;
@@ -507,17 +507,17 @@ int dst_data_recv(struct dst_state *st, void *data, unsigned int size)
 				
 				if(st-> type == LISTENING){
 
-					printk(KERN_INFO "listening");
-					memcpy(st->dest_mac, buf + 6, ETH_ALEN);
-					printk(KERN_INFO "dest after");
-					dst_print_mac(st->dest_mac);
+					//printk(KERN_INFO "listening");
+					memcpy(st->dest_mac, buf + ETH_ALEN, ETH_ALEN);
+					
+					//dst_print_mac(st->dest_mac);
 					if(!check_mac(st, st->dest_mac)){
 						//our_packet = 1;
 						memcpy(data, buf+ETH_HLEN, size);
-						printk(KERN_INFO "listening, our_packet");
+						//printk(KERN_INFO "listening, our_packet");
 					}
 				}
-				else if( !memcmp( st-> dest_mac, buf + 6, ETH_ALEN))
+				else if( !memcmp( st-> dest_mac, buf + ETH_ALEN, ETH_ALEN))
 				{
 					//our_packet = 1;
 					memcpy(data, buf+ETH_HLEN, size);
@@ -576,7 +576,7 @@ int dst_process_cfg(struct dst_state *st)//static
  */
 static int dst_recv_bio(struct dst_state *st, struct bio *bio, unsigned int total_size)
 {
-	printk(KERN_INFO "RCV BIO");
+	//printk(KERN_INFO "RCV BIO");
 	struct bio_vec *bv;
 	int i, err;
 	void *data;
@@ -611,7 +611,7 @@ static int dst_recv_bio(struct dst_state *st, struct bio *bio, unsigned int tota
  */
 static int dst_process_io_response(struct dst_state *st)
 {
-	printk(KERN_INFO "DST PROCESS IO RESPONSE");
+	//printk(KERN_INFO "DST PROCESS IO RESPONSE");
 	struct dst_node *n = st->node;
 	struct dst_cmd *cmd = st->data;
 	struct dst_trans *t;
@@ -668,7 +668,7 @@ err_out_exit:
 
 int dst_recv_cdata(struct dst_state *st, void *cdata)
 {
-	printk(KERN_INFO "RECV CRYPTO DATA");
+	//printk(KERN_INFO "RECV CRYPTO DATA");
 	struct dst_cmd *cmd = st->data;
 	struct dst_node *n = st->node;
 	struct dst_crypto_ctl *c = &n->crypto;
@@ -765,7 +765,7 @@ out_exit:
  */
 static int dst_recv(void *init_data, void *schedule_data)
 {
-	printk(KERN_INFO "DST RECV");
+	//printk(KERN_INFO "DST RECV");
 	struct dst_state *st = schedule_data;
 	struct dst_node *n = init_data;
 	int err = 0;
@@ -853,10 +853,10 @@ struct dst_state *dst_state_alloc(struct dst_node *n, int type)
 	if(type == LISTENING)
 	{
 		st->type = LISTENING;
-		printk(KERN_INFO "state type: listening" );
+		//printk(KERN_INFO "state type: listening" );
 	}else{
 		st->type = COMMON;
-		printk(KERN_INFO "state type: common" );
+		//printk(KERN_INFO "state type: common" );
 	}		
 
 	return st;
@@ -879,7 +879,7 @@ int dst_state_schedule_receiver(struct dst_state *st)
  */
 int dst_node_init_connected(struct dst_node *n, struct dst_network_ctl *r)
 {
-	printk(KERN_INFO "INIT CONNECT");
+	//printk(KERN_INFO "INIT CONNECT");
 	struct dst_state *st;
 	int err = -ENOMEM;
 	struct sockaddr_ll* sa;
@@ -896,17 +896,17 @@ int dst_node_init_connected(struct dst_node *n, struct dst_network_ctl *r)
 	read_lock(&dev_base_lock);
 		for_each_netdev(&init_net, ifp) {
 			if (ifp->ifindex == sa->sll_ifindex){
-				printk(KERN_INFO "number of interface %d\n", ifp->ifindex);
+				//printk(KERN_INFO "number of interface %d\n", ifp->ifindex);
 				break;
 			}
 		}
 	read_unlock(&dev_base_lock);
 
 	memcpy(st->src_mac, ifp->dev_addr, ETH_ALEN);    // copy src_mac to new state
-	printk(KERN_INFO "dest before");
+	//printk(KERN_INFO "dest before");
 	dst_print_mac(st->dest_mac);
 	memcpy(st->dest_mac, sa->sll_addr, ETH_ALEN);   // copy dest_mac to new state	
-	printk(KERN_INFO "dest after");
+	//printk(KERN_INFO "dest after");
 	dst_print_mac(st->dest_mac);
 
 	err = dst_state_init_connected(st);
@@ -951,7 +951,7 @@ void dst_state_put(struct dst_state *st)
  */
 int dst_send_bio(struct dst_state *st, struct dst_cmd *cmd, struct bio *bio)
 {
-	printk(KERN_INFO "SEND BIO ONE BY ONE");
+	//printk(KERN_INFO "SEND BIO ONE BY ONE");
 	struct bio_vec *bv;
 	struct dst_crypto_ctl *c = &st->node->crypto;
 	int err, i = 0;
@@ -995,7 +995,7 @@ err_out_exit:
  */
 int dst_trans_send(struct dst_trans *t)
 {
-	printk(KERN_INFO "SEND TRANSACTION");
+	//printk(KERN_INFO "SEND TRANSACTION");
 	int err;
 	struct dst_state *st = t->n->state;
 	struct bio *bio = t->bio;

@@ -77,13 +77,15 @@ static unsigned int dst_check_permissions(struct dst_state *main, unsigned char 
 		 * protocol to something else, I can create per-family helpers and
 		 * use them instead of this memcmp.
 		 */
+		//dst_print_mac(s->addr.sa_data+10);
+		//printk(KERN_INFO "%d", s->permissions);
 		if (memcmp(s->addr.sa_data + 10, mac, ETH_ALEN))
 			continue;
 		perm = s->permissions;
 	}
 	mutex_unlock(&n->security_lock);
 
-	return 3;
+	return perm;
 }
 /*
  *Checks if mac contains in accepted macs list.
@@ -91,7 +93,7 @@ static unsigned int dst_check_permissions(struct dst_state *main, unsigned char 
 void dst_print_mac(unsigned char *mac)
 {
 	int i;
-	printk(KERN_INFO "mac: ");
+	//printk(KERN_INFO "mac: ");
 	printk(KERN_INFO "%d:%d:%d:%d:%d:%d", mac[0],mac[1], mac[2], mac[3], mac[4], mac[5]);
 	
 }
@@ -108,7 +110,7 @@ static struct dst_state *dst_accept_client(struct dst_state *st)
 	int err = 0;
 	struct socket *sock = NULL;
 	struct dst_state *new;
-	printk(KERN_INFO "dst_accept_client");
+	//printk(KERN_INFO "dst_accept_client");
 	struct dst_network_ctl *ctl = &st->ctl;
 	/*
 	while (!err && !sock) {
@@ -189,24 +191,24 @@ static struct dst_state *dst_accept_client(struct dst_state *st)
 	err = kernel_bind(new->socket, (struct sockaddr *)&ctl->addr,
 			ctl->addr.sa_data_len);//bind socket with eth interface
 	if(!err){
-		printk(KERN_INFO "BIND OK!!!!");
+		//printk(KERN_INFO "BIND OK!!!!");
 	}
 	if (err){
-		printk(KERN_INFO "NO BIND!!!!");
+		//printk(KERN_INFO "NO BIND!!!!");
 		goto err_out_release;
 	}
 	
 	new->ctl.addr.sa_data_len = sizeof(struct sockaddr_ll);//mydiff sockaddr
 	
-	printk(KERN_INFO "%d,\n", err);
+	//printk(KERN_INFO "%d,\n", err);
 	
 	err = dst_poll_init(new);
 	if (err)
 		goto err_out_put;
-	printk(KERN_INFO "poll init");
+	//printk(KERN_INFO "poll init");
 	dst_dump_addr(new -> socket, (struct sockaddr *)&new->ctl.addr,
 			"Connected client");
-	printk(KERN_INFO "connected client");
+	//printk(KERN_INFO "connected client");
 	return new;
 
 err_out_put:
@@ -228,20 +230,17 @@ struct dst_state *dst_check_client_mac(struct dst_state *st){
 	unsigned char *test_mac;
 	struct dst_state *new;
 	struct mac_list *m_list;
-	struct sockaddr_ll* sa;
-
-	sa = (struct sockaddr_ll*)&(st->ctl.addr);
 	
 	st->read_socket = st->socket;
 
 	err = dst_data_recv(st, cmd, sizeof(struct dst_cmd));
 
 	if(err > 0) {
-		printk(KERN_INFO "no recieve message");	
+		//printk(KERN_INFO "no recieve message");	
 	}		
 	
 	permissions = dst_check_permissions( st, st->dest_mac);
-	printk(KERN_INFO "permissions: %d", permissions);		
+	//printk(KERN_INFO "permissions: %d", permissions);		
 	if( permissions <= 0)
 		err = -ENOMEM; //todo
 	else
@@ -249,23 +248,23 @@ struct dst_state *dst_check_client_mac(struct dst_state *st){
 		dst_convert_cmd(cmd);
 		switch (cmd->cmd) {
 			case DST_CFG:
-				printk(KERN_INFO "mac to accept(dest_mac)");
+				//printk(KERN_INFO "mac to accept(dest_mac)");
 				dst_print_mac(st->dest_mac);	
 				new = dst_accept_client(st);
 				new->permissions = permissions;
 				m_list = kmalloc(sizeof(struct mac_list), GFP_KERNEL);	
 				memcpy(m_list->mac, st->dest_mac, ETH_ALEN);
 					
-				dst_print_mac(m_list->mac);				
+				//dst_print_mac(m_list->mac);				
 
-				memcpy(new->dest_mac, st->dest_mac, ETH_ALEN);   	// copy dest_mac to new state
-				memcpy(new->src_mac, sa->sll_addr, ETH_ALEN);   	// copy src_mac to new state
+				memcpy(new->dest_mac, st->dest_mac, ETH_ALEN);  // copy dest_mac to new state
+				memcpy(new->src_mac, st->src_mac, ETH_ALEN);   	// copy src_mac to new state
 				list_add_tail(&m_list->mac_entry, &st->ac_macs); 	//adding new connected mac to list of accepted ones
 				
 				list_for_each_entry(m_list, &st->ac_macs, mac_entry)
 					{	
 						test_mac = &m_list->mac;
-						printk(KERN_INFO "test print mac: /n");		
+						//printk(KERN_INFO "test print mac: /n");		
 						dst_print_mac(test_mac);			
 					}
 				memcpy(new->data, st->data, sizeof(struct dst_cmd));
@@ -386,17 +385,17 @@ static int dst_accept(void *init_data, void *schedule_data)
 	int err,i;
 	
 	i = 0;
-	printk(KERN_INFO "dst_accept");
+	//printk(KERN_INFO "dst_accept");
 	while (n->trans_scan_timeout && !main_st->need_exit) {
 		dprintk("%s: main_st: %p, n: %p.\n", __func__, main_st, n);
-		printk(KERN_INFO "dst_accept_middle(before dst_check_client_mac)");
+		//printk(KERN_INFO "dst_accept_middle(before dst_check_client_mac)");
 		st = dst_check_client_mac(main_st);
 		if (IS_ERR(st))
 			continue;
 
 		err = dst_state_schedule_receiver(st);
 		if (!err) {
-			printk(KERN_INFO "dst_accept_middle(in if)");
+			//printk(KERN_INFO "dst_accept_middle(in if)");
 			while (n->trans_scan_timeout) {
 				err = wait_event_interruptible_timeout(st->thread_wait,
 						!list_empty(&st->request_list) ||
@@ -406,17 +405,17 @@ static int dst_accept(void *init_data, void *schedule_data)
 
 				if (!n->trans_scan_timeout || st->need_exit)
 				{	
-					printk(KERN_INFO "first if");
+					//printk(KERN_INFO "first if");
 					break;
 				}
 				if (list_empty(&st->request_list))
 				{
-					printk(KERN_INFO "second if");
+					//printk(KERN_INFO "second if");
 					continue;
 				}
 				err = dst_export_process_request_queue(st);
 				if (err){
-					printk(KERN_INFO "third if");
+					//printk(KERN_INFO "third if");
 					break;
 				}
 			}
@@ -436,7 +435,7 @@ static int dst_accept(void *init_data, void *schedule_data)
 	dst_state_unlock(main_st);
 	dst_state_put(main_st);
 	dprintk("%s: freed listening socket st: %p.\n", __func__, main_st);
-	printk(KERN_INFO "dst_accept exit");
+	//printk(KERN_INFO "dst_accept exit");
 	return 0;
 }
 
@@ -458,6 +457,9 @@ int dst_node_init_listened(struct dst_node *n, struct dst_export_ctl *le)
 	struct dst_state *st;
 	int err = -ENOMEM;
 	struct dst_network_ctl *ctl = &le->ctl;
+	struct sockaddr_ll* sa;
+
+	
 
 	memcpy(&n->info->net, ctl, sizeof(struct dst_network_ctl));
 
@@ -467,6 +469,9 @@ int dst_node_init_listened(struct dst_node *n, struct dst_export_ctl *le)
 		goto err_out_exit;
 	}
 	memcpy(&st->ctl, ctl, sizeof(struct dst_network_ctl));
+	
+	sa = (struct sockaddr_ll*)&(st->ctl.addr);
+	memcpy(st->src_mac, sa->sll_addr, ETH_ALEN);//fill source mac for allocated listening state 
 
 	err = dst_state_socket_create(st);
 	if (err)
@@ -477,10 +482,10 @@ int dst_node_init_listened(struct dst_node *n, struct dst_export_ctl *le)
 	err = kernel_bind(st->socket, (struct sockaddr *)&ctl->addr,
 			ctl->addr.sa_data_len);
 	if(!err){
-		printk(KERN_INFO "BIND OK!!!!");
+		//printk(KERN_INFO "BIND OK!!!!");
 	}
 	if (err){
-		printk(KERN_INFO "NO BIND!!!!");
+		//printk(KERN_INFO "NO BIND!!!!");
 		goto err_out_socket_release;
 	}
 
@@ -720,7 +725,7 @@ err_out_exit:
  */
 int dst_export_send_bio(struct bio *bio)
 {
-	printk(KERN_INFO "EXPORT SEND BIO");
+	//printk(KERN_INFO "EXPORT SEND BIO");
 	struct dst_export_priv *p = bio->bi_private;
 	struct dst_state *st = p->state;
 	struct dst_cmd *cmd = &p->cmd;
