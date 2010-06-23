@@ -48,7 +48,7 @@ static int client_init(void)
 	memcpy( &(addr.sin_addr.s_addr), (void *)dest_ip, 4);
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(666);
-	addr.sin_addr.s_addr = htonl(INADDR_ANY);
+//	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	 /* find device by index */
 	read_lock(&dev_base_lock);
