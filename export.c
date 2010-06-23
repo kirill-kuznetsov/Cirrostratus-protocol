@@ -277,8 +277,6 @@ struct dst_state *dst_check_client_mac(struct dst_state *st){
 				break;
 		}
 	}
-	
-	//kfree(buf);
 	if(err){
 		new = ERR_PTR(err);
 	}

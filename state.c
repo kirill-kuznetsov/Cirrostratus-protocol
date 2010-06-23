@@ -147,6 +147,7 @@ int dst_data_send_header(struct dst_state *st,
 	msg.msg_flags = MSG_WAITALL | (more)?MSG_MORE:0;
 
 	err = kernel_sendmsg(sock, &msg, &iov, 1, iov.iov_len);
+	kfree(buffer);
 	if (err != size + ETH_HLEN) {
 		printk(KERN_INFO "kernel_sendmsg error %d\n", err);
 		dprintk("%s: size: %u, more: %d, err: %d.\n",
