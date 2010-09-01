@@ -1,7 +1,7 @@
 ifneq ($(KERNELRELEASE),)
-	obj-$(CONFIG_DST) += client.o
+	obj-$(CONFIG_DST) += skb_send.o
 
-	nst-y := client.o
+	nst-y := skb_send.o
 else
 
 	KERNELDIR ?= /lib/modules/$(shell uname -r)/build
