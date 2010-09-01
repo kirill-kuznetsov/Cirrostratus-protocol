@@ -22,6 +22,7 @@ static struct net_device *ifp;
 
 unsigned char g_msg[] = "HELLO WORLD!";
 
+
 static struct sk_buff *new_skb(int pkt_size, struct net_device *ifp)
 {	
 	struct sk_buff *skb;
@@ -62,7 +63,7 @@ static void tx(void)
 {
 	struct sk_buff *skb;
 	spin_lock_irq(&txlock);
-
+	int i = 0;
 	while ((skb = skb_dequeue(&skbtxq))) {	
 		spin_unlock_irq(&txlock);
 		if (dev_queue_xmit(skb) == NET_XMIT_DROP && net_ratelimit())
@@ -70,9 +71,13 @@ static void tx(void)
 				"packet could not be sent on %s.  %s\n",
 				skb->dev ? skb->dev->name : "netif",
 				"consider increasing tx_queue_len");
-//		else printk(KERN_INFO "package send sucessful");
+		else {
+//			printk(KERN_INFO "package send sucessful");
+			i++;
+		}
 		spin_lock_irq(&txlock);
 	}
+	printk(KERN_INFO "packets send %d", i);
 	spin_unlock_irq(&txlock);
 }
 
@@ -111,7 +116,8 @@ intialize module
 */
 static int hello_init(void)
 {
-	int ret, i, j;
+	int ret, i, j, iter = 100000, buf_max = 20000; //на 10000 пакетов отправка шла только дл€ первых 20000+ ( оограничение очереди скб?) 
+																			//поэтому в очередь отправки добавл€етс€ по 20к пакетов, затем они передаютс€, добавл€ютс€ след 20к и тд
 	unsigned long begin = 0;
 	printk(KERN_INFO "Hello, world\n");
 
@@ -128,14 +134,17 @@ static int hello_init(void)
 	read_unlock(&dev_base_lock);
 	
 	// create new skb and put it in queue
-	for(i = 0; i < 100000; i++)
-	{
-		test_xmit(new_skb(ifp-> mtu, ifp));
-	}
-	begin = jiffies;
-	tx();                            // send skb
+	if(iter < buf_max)
+		buf_max = iter;
+	for(i = 0, j = 0, begin = jiffies; i <  iter; )
+	{	
+		for( j = 0; j < buf_max; j++, i++)
+			test_xmit(new_skb(ifp-> mtu, ifp));
+		tx(); 
+	}                          
+	
+//	tx(); 
 	printk(KERN_INFO "time: %ld", jiffies - begin);
-
 
 	return 0;
 }
